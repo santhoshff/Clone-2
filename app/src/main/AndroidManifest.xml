@@ -1,0 +1,239 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Tells Wi-Fi from mobile data, so the matching quality ceiling applies. -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <!-- Saving a track to Music outlives the screen it was asked from. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- Touch feedback. The system's own haptics switch is honoured on top of
+         this, so granting it doesn't override a user who turned buzzing off. -->
+    <uses-permission android:name="android.permission.VIBRATE" />
+
+    <!--
+      Asked for only when the output picker is first opened, and only on API 31+
+      where it exists. Without it a paired headset is listed by the audio
+      framework under a generic name rather than its own, which turns a list of
+      places to send the music into a list of things called "Bluetooth".
+      Everything else in the app works without it.
+    -->
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+
+    <!--
+      In-app updates: handing a downloaded APK to the system installer. The
+      per-app "install unknown apps" switch is still the user's to flip; this
+      only lets the request reach the installer.
+    -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+
+    <!-- Reading local audio files across the device -->
+    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
+    <uses-permission
+        android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
+
+    <!--
+      Only for API 28 and below. From 29 the app writes to the shared Music
+      folder through MediaStore, which grants access to the rows it created and
+      needs no permission at all — and this one stops being grantable there.
+    -->
+    <uses-permission
+        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="28" />
+
+    <application
+        android:name=".BitChordApplication"
+        android:allowBackup="true"
+        android:appCategory="audio"
+        android:usesCleartextTraffic="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:localeConfig="@xml/locales_config"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.BitChord"
+        tools:targetApi="34">
+
+        <!--
+          One UI 7+ only routes an app's ongoing notification to Live
+          Notifications / the Now Bar if the app opts in here. Ignored by every
+          other OEM. Samsung additionally gates the non-media Live Notification
+          extras behind a per-package allowlist; the media card does not need it.
+        -->
+        <meta-data
+            android:name="com.samsung.android.support.ongoing_activity"
+            android:value="true" />
+
+        <service
+            android:name="androidx.appcompat.app.AppLocalesMetadataHolderService"
+            android:enabled="false"
+            android:exported="false">
+            <meta-data
+                android:name="autoStoreLocales"
+                android:value="true" />
+        </service>
+
+        <!-- Android Auto support -->
+        <meta-data
+            android:name="com.google.android.gms.car.application"
+            android:resource="@xml/automotive_app_desc" />
+
+        <!--
+          No android:screenOrientation here, deliberately: the app follows the
+          system's own auto-rotate setting on every device, phones included.
+
+          [android:configChanges] is the other half of that: without it, a
+          rotation the system now allows is still a full Activity restart,
+          which throws away every bit of in-memory Compose state along with
+          it — the sheet showing Now Playing, whether the lyrics or queue
+          panel was open, mid-scrub position, all of it — before any of this
+          screen's own responsive layout logic ever gets a chance to run.
+          Declaring these configurations here is what turns a rotation back
+          into an ordinary recomposition: the same Activity keeps running,
+          the same state survives, and the width- and height-aware branches
+          in NowPlayingScreen.kt decide the new layout.
+
+          uiMode is deliberately *not* in the list: a day/night change should
+          still recreate the Activity so the theme is rebuilt from resources.
+        -->
+        <!-- Eva Music HTML front end: the launcher entry point. -->
+        <activity
+            android:name=".EvaWebActivity"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:windowSoftInputMode="adjustResize"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|uiMode"
+            android:theme="@style/Theme.BitChord">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+                <category android:name="android.intent.category.APP_MUSIC" />
+            </intent-filter>
+        </activity>
+
+
+
+        <service
+            android:name=".playback.PlaybackService"
+            android:exported="true"
+            android:foregroundServiceType="mediaPlayback">
+            <intent-filter>
+                <action android:name="androidx.media3.session.MediaLibraryService" />
+                <action android:name="androidx.media3.session.MediaSessionService" />
+                <action android:name="android.media.browse.MediaBrowserService" />
+            </intent-filter>
+        </service>
+
+        <receiver
+            android:name="androidx.media3.session.MediaButtonReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MEDIA_BUTTON" />
+            </intent-filter>
+        </receiver>
+
+        <!--
+          Downloads. Not exported: it is started by the app and by its own
+          cancel action, and nothing outside has any business queueing work.
+        -->
+        <service
+            android:name=".download.DownloadService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
+        <!--
+          Home-screen widgets. Two providers so the picker lists a 2×2 and a 4×2,
+          both of which are the same widget resized — see MediaWidget.
+
+          Not exported, which is correct for a widget provider despite the
+          launcher being the one that talks to it: the system delivers
+          APPWIDGET_UPDATE to providers regardless, and the button PendingIntents
+          are sent with this app's own identity. Exporting them would only make
+          the update broadcast reachable by anything on the device.
+        -->
+        <receiver
+            android:enabled="false"
+            android:name=".widget.MediaWidgetSquare"
+            android:exported="false"
+            android:label="@string/widget_square_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_media_square" />
+        </receiver>
+
+        <receiver
+            android:enabled="false"
+            android:name=".widget.MediaWidgetWide"
+            android:exported="false"
+            android:label="@string/widget_wide_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_media_wide" />
+        </receiver>
+
+        <!-- The 4×1 capsule. Its own provider and layout; see MediaWidgetPill. -->
+        <receiver
+            android:enabled="false"
+            android:name=".widget.MediaWidgetPill"
+            android:exported="false"
+            android:label="@string/widget_pill_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_media_pill" />
+        </receiver>
+
+        <!-- The transport buttons. Reached only by this app's own PendingIntents. -->
+        <receiver
+            android:enabled="false"
+            android:name=".widget.MediaWidgetActions"
+            android:exported="false" />
+
+        <!--
+          Hands the Replay poster to whichever app the user picks to send it
+          with. The authority is derived from the applicationId rather than
+          written out, because the dev and prod flavours are two packages that
+          can be installed side by side — a fixed authority would make the
+          second install fail outright with INSTALL_FAILED_CONFLICTING_PROVIDER.
+
+          Not exported, and grantUriPermissions is the whole mechanism: the
+          receiving app gets a read grant that arrives with the intent, covers
+          one file (see @xml/file_paths) and expires with it.
+
+          Also serves the downloaded update APK to the system installer
+          without it needing broad storage access — its own cache-only scope,
+          nothing else shared through it.
+        -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+
+        <!-- Where the Cast framework asks how this app wants to cast. -->
+        <meta-data
+            android:name="com.google.android.gms.cast.framework.OPTIONS_PROVIDER_CLASS_NAME"
+            android:value="com.music.bitchord.playback.cast.CastOptionsProvider" />
+    </application>
+
+</manifest>
