@@ -5,6 +5,7 @@ import android.annotation.SuppressLint
 import android.os.Build
 import androidx.activity.result.contract.ActivityResultContracts
 import android.content.Intent
+import org.json.JSONObject
 import android.graphics.Color
 import android.os.Bundle
 import android.webkit.WebResourceRequest
@@ -26,6 +27,7 @@ class EvaWebActivity : AppCompatActivity() {
 
     private lateinit var web: WebView
     private lateinit var engine: EvaEngine
+    private var pendingAuth: String? = null
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -48,6 +50,8 @@ class EvaWebActivity : AppCompatActivity() {
                 builtInZoomControls = false
             }
             webViewClient = object : WebViewClient() {
+                override fun onPageFinished(view: WebView, url: String?) { deliverAuth() }
+
                 override fun shouldInterceptRequest(
                     view: WebView,
                     request: WebResourceRequest,
@@ -99,8 +103,24 @@ class EvaWebActivity : AppCompatActivity() {
             }
         })
 
+        pendingAuth = authLink(intent)
         if (savedInstanceState != null) web.restoreState(savedInstanceState)
         else web.loadUrl("https://$HOST/index.html")
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        authLink(intent)?.let { pendingAuth = it; deliverAuth() }
+    }
+
+    private fun authLink(i: Intent?): String? =
+        i?.data?.takeIf { it.scheme == "evamusic" && it.host == "auth" }?.toString()
+
+    // Hands the sign-in result (from the browser) to the page.
+    private fun deliverAuth() {
+        val link = pendingAuth ?: return
+        pendingAuth = null
+        web.evaluateJavascript("(window.evaOAuth&&window.evaOAuth(${JSONObject.quote(link)}))", null)
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
