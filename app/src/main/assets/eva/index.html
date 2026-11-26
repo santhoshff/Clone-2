@@ -1818,7 +1818,7 @@ async function pwHash(pw, salt){
   } catch(e){ let h = 5381; const t = salt+pw; for (let i=0;i<t.length;i++) h = ((h<<5)+h+t.charCodeAt(i))|0; return 'x'+(h>>>0).toString(16); }
 }
 const emailOk = e => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(e);
-const SB_URL = 'https://tqvbixekpdvabemdfrvl.supabase.co', SB_KEY = 'sb_publishable_00dVYKK8c3EZ1DtKDfyTyw_a4tLzsJR';
+const SB_URL = 'https://xfrsovmmxprtimzblhgg.supabase.co', SB_KEY = 'sb_publishable_nGpzQByBUPXx9MOZIiFdQA_y0TFjO71';
 async function sb(path, body){
   let r;
   try { r = await fetch(SB_URL + path, {method:'POST', headers:{'apikey':SB_KEY,'Content-Type':'application/json'}, body:JSON.stringify(body)}); }
