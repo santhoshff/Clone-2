@@ -16,6 +16,7 @@ import android.widget.Toast
 import android.os.Bundle
 import android.os.Handler
 import android.os.SystemClock
+import com.music.bitchord.EvaBridge
 import com.music.bitchord.data.TelemetryProvenance
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -7387,11 +7388,29 @@ class PlaybackService : MediaLibraryService() {
             super.seekForward()
         }
 
+        // Eva keeps its queue in the page, so the player itself only ever holds one
+        // song. Offer Next to the notification anyway and hand it to the page.
+        override fun getAvailableCommands(): Player.Commands =
+            super.getAvailableCommands().buildUpon()
+                .add(Player.COMMAND_SEEK_TO_NEXT)
+                .add(Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM)
+                .build()
+
+        override fun isCommandAvailable(command: Int): Boolean =
+            command == Player.COMMAND_SEEK_TO_NEXT ||
+                command == Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM ||
+                super.isCommandAvailable(command)
+
         override fun seekToPrevious() {
             if (locked()) return
             onUserIntent()
             if (cast.active) {
                 castPrevious()
+                return
+            }
+            val page = EvaBridge.onPrev
+            if (page != null && !wrappedPlayer.hasPreviousMediaItem() && wrappedPlayer.currentPosition <= 3000) {
+                page()
                 return
             }
             super.seekToPrevious()
@@ -7564,6 +7583,11 @@ class PlaybackService : MediaLibraryService() {
         override fun seekToNextMediaItem() {
             if (locked()) return
             onUserIntent()
+            val page = EvaBridge.onNext
+            if (page != null && !wrappedPlayer.hasNextMediaItem()) {
+                page()
+                return
+            }
             crossfade.onSkipRequested()
             wrappedPlayer.seekToNextMediaItem()
         }
@@ -7571,6 +7595,11 @@ class PlaybackService : MediaLibraryService() {
         override fun seekToNext() {
             if (locked()) return
             onUserIntent()
+            val page = EvaBridge.onNext
+            if (page != null && !wrappedPlayer.hasNextMediaItem()) {
+                page()
+                return
+            }
             crossfade.onSkipRequested()
             wrappedPlayer.seekToNext()
         }

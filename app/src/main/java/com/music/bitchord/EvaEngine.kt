@@ -37,6 +37,12 @@ import org.json.JSONObject
  * Audio itself is played by the original playback service, so full-length streams,
  * the notification and lock-screen controls all come from the engine.
  */
+/** Lets the notification / lock screen / headset skip buttons reach the page's own queue. */
+object EvaBridge {
+    @Volatile var onNext: (() -> Unit)? = null
+    @Volatile var onPrev: (() -> Unit)? = null
+}
+
 class EvaEngine(private val activity: android.app.Activity, private val web: WebView) {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
@@ -67,6 +73,8 @@ class EvaEngine(private val activity: android.app.Activity, private val web: Web
     init {
         // Eva has its own queue and autoplay logic in the page; the engine plays one track at a time.
         AppSettings.setAutoplay(false)
+        EvaBridge.onNext = { main.post { web.evaluateJavascript("(window.evaCmd&&evaCmd('next'))", null) } }
+        EvaBridge.onPrev = { main.post { web.evaluateJavascript("(window.evaCmd&&evaCmd('prev'))", null) } }
         main.post {
             val token = SessionToken(activity, ComponentName(activity, PlaybackService::class.java))
             val f = MediaController.Builder(activity, token).buildAsync()
@@ -81,6 +89,8 @@ class EvaEngine(private val activity: android.app.Activity, private val web: Web
     }
 
     fun release() {
+        EvaBridge.onNext = null
+        EvaBridge.onPrev = null
         main.removeCallbacks(ticker)
         controller?.removeListener(listener)
         future?.let { MediaController.releaseFuture(it) }

@@ -453,6 +453,7 @@ input[type=range]::-moz-range-thumb{width:6px;height:36px;border-radius:3px;back
 @media (prefers-reduced-motion:reduce){#login .lg-brand,#login .lg-h,#login .lg-rest{animation:none;opacity:1}#login .lg-seg i,#login .lg-name{transition:none}#login.shake form{animation:none}}
 #login .lg-or{display:flex;align-items:center;gap:12px;margin:14px 2px 10px;color:#7f878c;font-size:13px}#login .lg-or:before,#login .lg-or:after{content:'';flex:1;height:1px;background:rgba(255,255,255,.12)}
 #login .lg-g{display:flex;align-items:center;justify-content:center;gap:12px;width:100%;height:52px;border-radius:999px;border:1px solid rgba(255,255,255,.22);background:rgba(255,255,255,.05);color:#eef1f2;font:inherit;font-size:16px;font-weight:600;cursor:pointer}#login .lg-g:active{transform:scale(.975)}#login .lg-g[disabled]{opacity:.6;cursor:progress}
+#login .lg-x{position:absolute;top:calc(env(safe-area-inset-top,0px) + 14px);right:16px;z-index:3;width:40px;height:40px;border-radius:50%;border:0;background:rgba(255,255,255,.08);color:#e8ecee;font-size:16px;cursor:pointer}
 </style>
 
 <div id="app" aria-label="Eva Music">
@@ -1267,7 +1268,7 @@ function appearanceView(){
   return `<div class="hdr gut" style="padding-top:20px"><div class="back-row">${backBtn()}${search}<button class="ibtn" data-act="set-search" aria-label="${S.setSearch?'Close':'Search'} settings">${ic(S.setSearch?'back':'search')}</button></div></div>
   <div class="gut" id="setlist" style="padding-top:18px">
     <section data-grp>
-      ${window.evaAuth&&evaAuth.user()?`<button class="set" data-s="account sign out log out ${(evaAuth.user().name||'').toLowerCase()}" data-act="signout"><span class="tile t1">${ic('auto')}</span><span class="tx"><b>${evaAuth.user().guest?'Guest':evaAuth.user().name}</b><span>${evaAuth.user().guest?'Tap to sign in or create an account':'Signed in as '+evaAuth.user().email+' · tap to sign out'}</span></span></button>`:''}
+      ${window.evaAuth?(evaAuth.user()?`<button class="set" data-s="account sign out log out ${(evaAuth.user().name||'').toLowerCase()}" data-act="signout"><span class="tile t1">${ic('auto')}</span><span class="tx"><b>${evaAuth.user().name}</b><span>Signed in as ${evaAuth.user().email} \u00b7 your library and settings are saved to your account \u00b7 tap to sign out</span></span></button>`:`<button class="set" data-s="account sign in log in sign up create account save data cloud" data-act="signin"><span class="tile t1">${ic('auto')}</span><span class="tx"><b>Sign in</b><span>Optional. Sign in to save your library and settings to your account</span></span>${ic('chev')}</button>`):''}
       <div class="set col" data-s="theme system default light dark"><span class="tile t1">${ic('auto')}</span><span class="tx"><b>Theme</b><span>Choose system default, light, or dark</span></span><div class="seg" role="radiogroup" aria-label="Theme">${seg}</div></div>
       <div class="set col" data-s="app icon logo badge default pure white obsidian black eva"><span class="tile t1">${ic('dock')}</span><span class="tx"><b>App Icon</b><span>${ICONNAMES[S.appIcon][1]}</span></span><div class="icons" role="radiogroup" aria-label="App icon">${['default','white','black'].map(k=>`<button class="ico ${S.appIcon===k?'on':''}" role="radio" aria-checked="${S.appIcon===k}" data-act="appicon" data-v="${k}">${logoBadge(k,true)}<span>${ICONNAMES[k][0]}</span></button>`).join('')}</div></div>
       ${tg('signature','sparkle','t3','Eva Signature Theme','Bespoke logo palette • Charcoal &amp; white')}
@@ -1631,7 +1632,8 @@ window.evaCmd = function(c){
   else if (c==='prev') prevTrack();
   else if (c.indexOf('seek:')===0) seekTo(Number(c.slice(5))/1000);
 };
-window.evaBack = function(){ if (S.sheet || S.player || S.stack.length){ back(); return true; } return false; };
+window.evaOnLogin = function(){ try { refresh('appearance'); toast('Signed in'); } catch(e){} };
+window.evaBack = function(){ if (window.evaAuth && evaAuth.isOpen()){ evaAuth.close(); return true; } if (S.sheet || S.player || S.stack.length){ back(); return true; } return false; };
 window.addEventListener('hashchange', ()=>{
   if (hashGuard){ hashGuard = false; if (location.hash.slice(1) === routeName()) return; }
   const n = location.hash.slice(1); if (n === routeName()) return;
@@ -1679,7 +1681,8 @@ function _act(name, el){
     case 'tab': S.tab = v; S.stack = []; render(); break;
     case 'toast': toast(v); break;
     case 'toggle': TOGGLES[v](); applyTheme(); refresh('preferences'); renderChrome(); break;
-    case 'signout': window.evaAuth && evaAuth.out(); break;
+    case 'signout': window.evaAuth && evaAuth.out(); refresh('appearance'); toast('Signed out'); break;
+    case 'signin': window.evaAuth && evaAuth.open(); break;
     case 'sheet': openSheet(v); break;
     case 'sheet-close': closeSheet(); break;
     case 'stats': openSheet('stats'); break;
@@ -1863,11 +1866,12 @@ window.evaOAuth = async link => {
     const u = await r.json();
     if (!r.ok || !u.email) throw 0;
     setSession(toSession({user:u, access_token:tok, refresh_token:q.get('refresh_token')}));
-    location.reload();
+    window.evaOnLogin && window.evaOnLogin(SESSION);
+    if (window.evaAuth && evaAuth.isOpen()) evaAuth.close();
   } catch(e){ alert('Google sign-in failed. Try again.'); }
 };
 function setSession(x){ SESSION = x; LS.set('eva.session', JSON.stringify(x)); }
-function signOut(){ SESSION = null; LS.set('eva.session','null'); try{{ if(window.EvaNative&&EvaNative.pause) EvaNative.pause(); }}catch(e){{}} showLogin(); }
+function signOut(){ SESSION = null; LS.set('eva.session','null'); }
 
 
 function showLogin(){
@@ -1877,6 +1881,7 @@ function showLogin(){
   el.setAttribute('role','dialog'); el.setAttribute('aria-label','Sign in to Eva Music');
   el.innerHTML = `<canvas aria-hidden="true"></canvas>
   <div class="lg-in">
+    <button class="lg-x" type="button" aria-label="Close">✕</button>
     <div class="lg-brand"><img src="${LOGO_ICON}" alt="">Eva Music</div>
     <div class="lg-scene"></div>
     <h1 class="lg-h">Feel the music.</h1>
@@ -1893,7 +1898,7 @@ function showLogin(){
       </form>
             <div class="lg-or">or</div>
       <button class="lg-g" type="button"><svg width="20" height="20" viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.8 2.4 30.3 0 24 0 14.6 0 6.5 5.4 2.6 13.2l7.9 6.1C12.4 13.6 17.7 9.5 24 9.5z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.6 3-2.3 5.5-4.8 7.2l7.5 5.8c4.4-4.1 7.1-10.1 7.1-17.5z"/><path fill="#FBBC05" d="M10.5 28.7c-.5-1.5-.8-3-.8-4.7s.3-3.2.8-4.7l-7.9-6.1C.9 16.4 0 20.1 0 24s.9 7.6 2.600 10.8l7.9-6.1z"/><path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.900-5.8l-7.500-5.8c-2.100 1.400-4.8 2.3-8.4 2.300-6.300 0-11.600-4.100-13.5-9.8l-7.900 6.1C6.5 42.600 14.600 48 24 48z"/></svg>Continue with Google</button>
-      <button class="lg-guest" type="button">Continue without an account</button>
+      <button class="lg-guest" type="button">Not now</button>
       <p class="lg-note">Sign in once and your account works on every phone.</p>
     </div>
   </div>`;
@@ -1992,11 +1997,53 @@ function showLogin(){
     catch(e){ if (e && e.message !== 'cancel') fail(e.message || 'Google sign-in failed.'); }
     b.disabled = false;
   });
-  $$l('.lg-guest').addEventListener('click', () => enter({id:'guest', guest:true, name:'Guest'}));
+  $$l('.lg-guest').addEventListener('click', () => done());
+  $$l('.lg-x').addEventListener('click', () => done());
   document.addEventListener('visibilitychange', () => { if (!loginEl) return; if (document.hidden){ mood.run = false; cancelAnimationFrame(raf); } else if (!reduce && !mood.run){ mood.run = true; last = performance.now(); raf = requestAnimationFrame(frame); } });
 }
-window.evaAuth = { out: signOut, user: () => SESSION };
-if (!SESSION) showLogin();
+/* ---------- cloud copy of the library and settings (needs the eva_user_data table) ---------- */
+const SKIP = /^eva\.(session|users|sync)/;
+const snapshot = () => { const o = {}; try { for (let i = 0; i < localStorage.length; i++){ const k = localStorage.key(i); if (k && k.indexOf('eva.') === 0 && !SKIP.test(k)) o[k] = localStorage.getItem(k); } } catch(e){} return o; };
+async function authed(path, opt){
+  const call = () => fetch(SB_URL + path, Object.assign({}, opt, {headers:Object.assign({apikey:SB_KEY,'Content-Type':'application/json',Authorization:'Bearer '+SESSION.access_token}, opt && opt.headers)}));
+  let r = await call();
+  if ((r.status === 401 || r.status === 403) && SESSION.refresh_token){
+    const t = await fetch(SB_URL + '/auth/v1/token?grant_type=refresh_token', {method:'POST', headers:{apikey:SB_KEY,'Content-Type':'application/json'}, body:JSON.stringify({refresh_token:SESSION.refresh_token})});
+    const j = await t.json().catch(()=>({}));
+    if (t.ok && j.access_token){ setSession(Object.assign({}, SESSION, {access_token:j.access_token, refresh_token:j.refresh_token||SESSION.refresh_token})); r = await call(); }
+  }
+  return r;
+}
+let lastPush = '';
+async function pushData(){
+  if (!SESSION || !SESSION.access_token) return;
+  const data = snapshot(), s = JSON.stringify(data);
+  if (s === lastPush) return;
+  try {
+    const r = await authed('/rest/v1/eva_user_data?on_conflict=user_id', {method:'POST', headers:{Prefer:'resolution=merge-duplicates'}, body:JSON.stringify({user_id:SESSION.id, data, updated_at:new Date().toISOString()})});
+    if (r.ok) lastPush = s;
+  } catch(e){}
+}
+async function pullData(){
+  if (!SESSION || !SESSION.access_token) return;
+  try {
+    const r = await authed('/rest/v1/eva_user_data?select=data&user_id=eq.' + encodeURIComponent(SESSION.id), {method:'GET'});
+    if (!r.ok) return;
+    const rows = await r.json(), d = rows && rows[0] && rows[0].data;
+    if (d && Object.keys(d).length){
+      for (const k in d) if (k.indexOf('eva.') === 0 && !SKIP.test(k)) LS.set(k, d[k]);
+      lastPush = JSON.stringify(snapshot());
+      LS.set('eva.sync.pulled', String(Date.now()));
+      location.reload();
+    } else await pushData();
+  } catch(e){}
+}
+setInterval(pushData, 20000);
+document.addEventListener('visibilitychange', () => { if (document.hidden) pushData(); });
+window.evaOnLogin = (function(prev){ return function(s){ try{ prev && prev(s); }catch(e){} setTimeout(pullData, 300); }; })(window.evaOnLogin);
+window.evaAuth = { out: signOut, user: () => (SESSION && SESSION.access_token ? SESSION : null), open: showLogin, isOpen: () => !!loginEl, close: () => { const b = document.querySelector('#login .lg-x'); if (b) b.click(); } };
+if (SESSION && SESSION.guest){ SESSION = null; LS.set('eva.session','null'); }
+if (SESSION) setTimeout(pushData, 4000);
 })();
 </script>
 </body></html>
