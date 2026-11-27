@@ -467,6 +467,17 @@ input[type=range]::-moz-range-thumb{width:6px;height:36px;border-radius:3px;back
 #upd .u-b button+button{border-top:1px solid rgba(255,255,255,.08);font-weight:400}
 #upd .u-b button:disabled{opacity:.6}
 #upd .u-bar{height:4px;background:rgba(255,255,255,.12)}#upd .u-bar i{display:block;height:100%;width:0;background:var(--acc,#c6dce9);transition:width .2s}
+.viral{margin:6px 0 18px}
+.vhead{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:10px}.vhead span{font-size:13px;opacity:.65}
+.vstack{position:relative;width:260px;height:380px;margin:14px auto 34px;touch-action:pan-y;animation:vin .3s .5s both}
+@keyframes vin{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:none}}
+.vcard{position:absolute;inset:0;border-radius:24px;overflow:hidden;background:var(--s2);box-shadow:0 14px 36px rgba(0,0,0,.45);cursor:grab;user-select:none;-webkit-user-select:none;will-change:transform}
+.vcard img{width:100%;height:100%;object-fit:cover;display:block;pointer-events:none}
+.vcard .vinfo{position:absolute;left:0;right:0;bottom:0;padding:44px 16px 16px;background:linear-gradient(transparent,rgba(0,0,0,.82));color:#fff;text-align:left}
+.vcard .vinfo em{font-style:normal;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;background:rgba(255,255,255,.18);padding:3px 8px;border-radius:99px}
+.vcard .vinfo b{display:block;margin-top:8px;font-size:19px;line-height:1.15;font-weight:650;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.vcard .vinfo span{display:block;margin-top:3px;font-size:14px;opacity:.8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.vhint{text-align:center;font-size:12.5px;opacity:.55;margin-top:-18px}
 </style>
 
 <div id="app" aria-label="Eva Music">
@@ -647,7 +658,7 @@ const MOODTAGS = {focus:'ambient,instrumental', chill:'chillout,lounge', energy:
 const TABS = ['home','create','playlists'];
 const S = {
   tab:'home', stack:[], player:false, lyrics:false, sheet:null,
-  cur:null, queue:[], qi:-1, pos:0, playing:false, source:'', results:[], searching:false, lang:'', trending:[], loading:true,
+  cur:null, queue:[], qi:-1, pos:0, playing:false, source:'', results:[], searching:false, lang:'', trending:[], viral:[], vlang:{}, vi:0, loading:true,
   shuffle:false, repeat:'off', quality:'max', glass:false, glassLevel:'medium', lyricAnim:'fluid', homeSort:'recent', plSort:'recent',
   eq:[2,1,0,1,3], eqPreset:'Custom', bioOpen:false, scrobble:true, automix:true, crossfade:false,
   mood:['focus'], energy:45, length:10, generated:[], q:''
@@ -956,6 +967,70 @@ async function loadTrending(){
   try { const r = await api('/api/recommendations?limit=20'+langQ()); S.trending = ingestAll(r.recommendations); }
   catch(e){ S.trending = []; if (!HISTORY.length) apiErr(e); }
 }
+
+/* ---------- trending card stack (Tamil 50% · Hindi 25% · Malayalam 25%) ---------- */
+const VIRAL_PLAN = [['ta',6,['Tamil trending songs 2026','Tamil viral hit songs 2026','latest Tamil hit songs']],['hi',3,['Hindi trending songs 2026','Hindi viral songs 2026']],['ml',3,['Malayalam trending songs 2026','Malayalam viral hit songs 2026']]];
+const VIRAL_TAG = {ta:'Tamil', hi:'Hindi', ml:'Malayalam'};
+async function loadViral(){
+  let cached = null; try { cached = JSON.parse(localStorage.getItem('evc.viral')||'null'); } catch(e){}
+  const fresh = cached && Date.now() - cached.t < 6*36e5 && cached.items && cached.items.length >= 8;
+  if (cached && cached.items) applyViral(cached.items);
+  if (fresh) return;
+  const picked = {}, seen = new Set();
+  await Promise.all(VIRAL_PLAN.map(async ([lang, n, qs])=>{
+    const out = [];
+    for (const q of qs){
+      if (out.length >= n) break;
+      try { const r = await api('/api/search?type=song&q='+encodeURIComponent(q)); for (const x of (r.results||[])){ if (out.length >= n) break; if (x.coverUrl && x.id && !seen.has(x.id)){ seen.add(x.id); out.push(Object.assign({}, x, {_l:lang})); } } } catch(e){}
+    }
+    picked[lang] = out;
+  }));
+  // interleave so the stack reads T H T M T H T M T H T M (6 : 3 : 3)
+  const order = ['ta','hi','ta','ml','ta','hi','ta','ml','ta','hi','ta','ml'], idx = {ta:0,hi:0,ml:0}, items = [];
+  for (const l of order){ const x = (picked[l]||[])[idx[l]++]; if (x) items.push(x); }
+  for (const l of ['ta','hi','ml']) for (const x of (picked[l]||[]).slice(idx[l])) items.push(x);
+  if (items.length < 4) return;
+  applyViral(items);
+  try { localStorage.setItem('evc.viral', JSON.stringify({t:Date.now(), items})); } catch(e){}
+}
+function applyViral(items){
+  S.viral = []; S.vlang = {};
+  for (const x of items){ const id = ingest(x); S.viral.push(id); S.vlang[id] = x._l; }
+  S.vi = 0;
+}
+function viralSection(){
+  if (!S.viral.length) return S.loading ? '<section class="viral"><div class="vhead gut"><h2 class="h2">Trending now</h2><span>Loading\u2026</span></div></section>' : '';
+  return `<section class="viral"><div class="vhead gut"><h2 class="h2">Trending now</h2><span>Tamil \u00b7 Hindi \u00b7 Malayalam</span></div>
+    <div class="vstack" id="vstack">${S.viral.map(id=>{ const t = TR[id], al = ALB[t.al]; return `<div class="vcard" data-vid="${id}" data-play="${id}" data-list="viral" role="button" tabindex="0" aria-label="Play ${E(t.title)}"><img src="${art(al)}" alt="" draggable="false"><div class="vinfo"><em>${VIRAL_TAG[S.vlang[id]]||''}</em><b>${E(t.title)}</b><span>${E(ART[t.ar].name)}</span></div></div>`; }).join('')}</div>
+    <div class="vhint">Swipe for more \u00b7 tap to play</div></section>`;
+}
+function layoutViral(drag){
+  const st = document.getElementById('vstack'); if (!st) return;
+  const cards = [...st.children], n = cards.length;
+  cards.forEach(c=>{
+    const id = c.dataset.vid, p = (S.viral.indexOf(id) - S.vi + n) % n;
+    c.style.zIndex = n - p; c.classList.toggle('top', p === 0);
+    if (p === 0 && drag) return;
+    const vis = p < 4;
+    c.style.transition = 'transform .35s cubic-bezier(.2,.8,.2,1), opacity .35s';
+    c.style.opacity = vis ? 1 : 0; c.style.pointerEvents = p === 0 ? 'auto' : 'none';
+    c.style.transform = `translate3d(${p ? (p%2?1:-1)*p*7 : 0}px,${p*-14}px,0) scale(${1-p*.07}) rotate(${p ? (p%2?1:-1)*p*2.2 : 0}deg)`;
+    c.style.filter = p ? `brightness(${1-p*.14})` : '';
+  });
+}
+(function(){
+  let sx = 0, sy = 0, dx = 0, drag = null, moved = false;
+  document.addEventListener('pointerdown', e=>{ const c = e.target.closest && e.target.closest('.vcard.top'); if (!c) return; drag = c; sx = e.clientX; sy = e.clientY; dx = 0; moved = false; c.style.transition = 'none'; try { c.setPointerCapture(e.pointerId); } catch(_){} });
+  document.addEventListener('pointermove', e=>{ if (!drag) return; dx = e.clientX - sx; if (Math.abs(dx) > 6) moved = true; drag.style.transform = `translate3d(${dx}px,${(e.clientY-sy)*.15}px,0) rotate(${dx/18}deg)`; });
+  const end = ()=>{ if (!drag) return; const c = drag; drag = null;
+    if (Math.abs(dx) > 70){ const dir = dx > 0 ? 1 : -1; c.style.transition = 'transform .25s, opacity .25s'; c.style.transform = `translate3d(${dir*420}px,0,0) rotate(${dir*24}deg)`; c.style.opacity = 0;
+      setTimeout(()=>{ S.vi = (S.vi + 1) % S.viral.length; layoutViral(); }, 200); }
+    else layoutViral();
+    if (moved){ const kill = ev=>{ ev.stopPropagation(); ev.preventDefault(); }; document.addEventListener('click', kill, {capture:true, once:true}); setTimeout(()=>document.removeEventListener('click', kill, true), 60); }
+  };
+  document.addEventListener('pointerup', end); document.addEventListener('pointercancel', end);
+  new MutationObserver(()=>{ const st = document.getElementById('vstack'); if (st && !st.dataset.ready){ st.dataset.ready = 1; layoutViral(); } }).observe(document.body, {childList:true, subtree:true});
+})();
 async function loadMixes(){
   await Promise.all(MIXES.filter(m=>!m.tracks.length).map(async m=>{ try { const r = await api('/api/recommendations?limit=10&genre='+encodeURIComponent(m.tags)); m.tracks = ingestAll(r.recommendations); } catch(e){} }));
   refresh('discover');
@@ -1134,9 +1209,7 @@ function homeView(){
   const list = homeList();
   return `<div class="hdr gut"><div class="hdr-row"><h1 class="wordmark">${logoBadge(S.appIcon)}Eva Music</h1>
       <div class="hdr-act"><button class="ibtn" data-go="discover" aria-label="Discover">${ic('explore')}</button><button class="ibtn" data-go="search" aria-label="Search">${ic('search')}</button><button class="avatar" data-go="preferences" aria-label="Preferences"><span>G</span></button></div></div></div>
-    <div class="gut chips"><span class="pill">guest</span><span class="pill">${ic('headphones')}${listenMin()}</span></div>
-    <section class="hero"><div class="hero-main"><div><b class="num">${HISTORY.length}</b><span>Scrobbles</span></div><button class="go" data-act="stats" aria-label="Open listening stats">${ic('fwd')}</button></div>
-      <div class="stats"><div class="stat"><b class="num">${new Set(HISTORY).size}</b><span>Tracks</span></div><div class="stat"><b class="num">${new Set(HISTORY.map(i=>TR[i].ar)).size}</b><span>Artists</span></div><div class="stat"><b class="num">${new Set(HISTORY.map(i=>TR[i].al)).size}</b><span>Albums</span></div></div></section>
+    ${viralSection()}
     <section class="listcard"><header><h2 class="h2">${HISTORY.length?'List':'Trending'}</h2><button class="select" data-act="sheet" data-v="homesort">${ic('clock')}${S.homeSort==='plays'?'Most played':'Recent'}${ic('down')}</button></header>
       <div class="rows-flat">${list.length?list.map(id=>trackRow(TR[id],{hl:true,badge:true,list:'home'})).join(''):`<div class="empty">${S.loading?'Loading…':'Nothing here yet.<br>Search for a song to start listening.'}</div>`}</div></section>`;
 }
@@ -1530,6 +1603,7 @@ function listFor(ctx){
   if (ctx==='home') return homeList();
   if (ctx==='search') return S.results.slice();
   if (ctx==='trend') return S.trending.slice();
+  if (ctx==='viral') return S.viral.slice(S.vi).concat(S.viral.slice(0,S.vi));
   if (ctx==='lib') return localMatches(S.q.trim());
   if (ctx && ctx.startsWith('pl:')) { const p=getPlaylist(ctx.slice(3)); return p?p.tracks:[]; }
   if (ctx && ctx.startsWith('artist:')) return artistTracks(ctx.slice(7)).map(t=>t.id);
@@ -1538,6 +1612,7 @@ function listFor(ctx){
 function sourceFor(ctx){
   if (ctx==='home') return homeLabel();
   if (ctx==='trend') return 'Popular this week';
+  if (ctx==='viral') return 'Trending in Tamil, Hindi & Malayalam';
   if (ctx && ctx.startsWith('pl:')) return (getPlaylist(ctx.slice(3))||{}).name || 'Playlist';
   if (ctx && ctx.startsWith('artist:')) return ART[ctx.slice(7)].name;
   return 'Search';
@@ -1812,7 +1887,7 @@ function setupApp(){
   loadSettings(); applyTheme(); setupApp();
   try { S.lang = localStorage.getItem('eva.lang') || ''; } catch(e){}
   renderMini(); buildPlayer(); render();
-  (async()=>{ await Promise.all([loadLibrary(), loadTrending()]); S.loading = false; refreshAll(); })();
+  (async()=>{ await Promise.all([loadLibrary(), loadTrending(), loadViral().then(()=>refreshAll()).catch(()=>{})]); S.loading = false; refreshAll(); })();
   const sp = $('#splash'), hide = () => sp.classList.add('gone');
   if (n || matchMedia('(prefers-reduced-motion:reduce)').matches) hide(); else { sp.addEventListener('click', hide); setTimeout(hide, 1500); }
 })();
