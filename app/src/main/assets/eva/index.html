@@ -592,6 +592,17 @@ function artSvg(al){
 }
 const artCache = {};
 const art = al => al.cover || artCache[al.id] || (artCache[al.id] = 'data:image/svg+xml;utf8,' + encodeURIComponent(artSvg(al)));
+
+/* sharper cover art: ask the image host for a bigger size (falls back to the original if it refuses) */
+function hiRes(u, px){
+  if (!u || u.startsWith('data:')) return u;
+  px = px || 800;
+  return u.replace(/=w\d+-h\d+/, '=w'+px+'-h'+px).replace(/=s\d+(?=(-|$))/, '=s'+px)
+          .replace(/\/(\d+)x\1(bb|cc)?\.(jpg|png)/, '/'+px+'x'+px+'bb.$3')
+          .replace(/\/vi\/([\w-]+)\/(default|mqdefault)\.jpg/, '/vi/$1/hqdefault.jpg');
+}
+const artHi = (al, px) => { const lo = art(al), hi = hiRes(lo, px); return hi === lo ? `src="${lo}"` : `src="${hi}" data-lo="${lo}"`; };
+document.addEventListener('error', e => { const i = e.target; if (i && i.tagName === 'IMG' && i.dataset && i.dataset.lo && i.getAttribute('src') !== i.dataset.lo) i.src = i.dataset.lo; }, true);
 function hslOf(hex){
   const n = parseInt(hex.slice(1),16), r=(n>>16&255)/255, g=(n>>8&255)/255, b=(n&255)/255;
   const mx=Math.max(r,g,b), mn=Math.min(r,g,b), l=(mx+mn)/2; let h=0, s=0;
@@ -1001,7 +1012,7 @@ function applyViral(items){
 function viralSection(){
   if (!S.viral.length) return S.loading ? '<section class="viral"><div class="vhead gut"><h2 class="h2">Trending now</h2><span>Loading\u2026</span></div></section>' : '';
   return `<section class="viral"><div class="vhead gut"><h2 class="h2">Trending now</h2><span>Tamil \u00b7 Hindi \u00b7 Malayalam</span></div>
-    <div class="vstack" id="vstack">${S.viral.map(id=>{ const t = TR[id], al = ALB[t.al]; return `<div class="vcard" data-vid="${id}" data-play="${id}" data-list="viral" role="button" tabindex="0" aria-label="Play ${E(t.title)}"><img src="${art(al)}" alt="" draggable="false"><div class="vinfo"><em>${VIRAL_TAG[S.vlang[id]]||''}</em><b>${E(t.title)}</b><span>${E(ART[t.ar].name)}</span></div></div>`; }).join('')}</div>
+    <div class="vstack" id="vstack">${S.viral.map(id=>{ const t = TR[id], al = ALB[t.al]; return `<div class="vcard" data-vid="${id}" data-play="${id}" data-list="viral" role="button" tabindex="0" aria-label="Play ${E(t.title)}"><img ${artHi(al,800)} alt="" draggable="false" decoding="async"><div class="vinfo"><em>${VIRAL_TAG[S.vlang[id]]||''}</em><b>${E(t.title)}</b><span>${E(ART[t.ar].name)}</span></div></div>`; }).join('')}</div>
     <div class="vhint">Swipe for more \u00b7 tap to play</div></section>`;
 }
 function layoutViral(drag){
@@ -1254,7 +1265,7 @@ function artistView(id){
   const tr = artistTracks(id), al = ALB[tr[0].al];
   const genres = a.genres.length ? a.genres : ['Music'];
   return `<div data-accent="${al.id}"><div class="gut" style="padding-top:20px">${backBtn()}</div>
-    <div class="ahero"><img src="${art(al)}" alt=""><div class="meta"><div class="nm"><span>${E(a.name)}</span>${a.verified?ic('verified'):''}</div><span class="lstn">${tr.length} tracks</span></div></div>
+    <div class="ahero"><img ${artHi(al,800)} alt=""><div class="meta"><div class="nm"><span>${E(a.name)}</span>${a.verified?ic('verified'):''}</div><span class="lstn">${tr.length} tracks</span></div></div>
     <div class="gut"><div class="actions" style="margin-top:20px"><button class="circ xl" data-act="play-artist" data-v="${id}" data-shuf="1" aria-label="Shuffle">${ic('shuffle')}</button><button class="circ xl" data-act="artist-radio" data-v="${id}" aria-label="Radio">${ic('radio')}</button><button class="circ fab" data-act="play-artist" data-v="${id}" aria-label="Play ${E(a.name)}">${ic('play')}</button></div>
       <div class="chips-o">${genres.map(g=>`<span class="chip-o">${E(g)}</span>`).join('')}</div>
       <div class="sec-h"><h2 class="h2">Songs</h2><span class="sub">${tr.length} tracks</span></div></div>
@@ -1498,7 +1509,7 @@ const PROVNAME = {apple:'Apple Music', lrclib:'LRCLIB', auto:'Automatic'};
 
 function buildPlayer(){
   if (!S.cur){ S.player = false; player.className = 'player'; player.innerHTML = ''; return; }
-  const t = TR[S.cur], al = ALB[t.al], ar = ART[t.ar], img = art(al);
+  const t = TR[S.cur], al = ALB[t.al], ar = ART[t.ar], lo = art(al), img = hiRes(lo, 1000);
   S.dynNP ? setAcc(player, accentOf(al)) : clearAcc(player);
   const lines = t.preview ? null : LYRICS[S.cur], plainLy = LYR_PLAIN[S.cur];
   const hasVid = S.musicVideo && VIDEO.has(t.id) && !S.lyrics;
@@ -1507,8 +1518,8 @@ function buildPlayer(){
   const still = (S.lyrics ? !S.lyMotion : !S.rotBg) ? ' still' : '';
   const cut = S.gradBlur ? '' : ' cut';
   let wash = '';
-  if (full) wash = (hasCv ? `<div class="cv${cut}"><img class="c1" src="${img}" alt=""><img class="c2" src="${img}" alt=""></div>` : `<img class="full${cut}" src="${img}" alt="">`) + `<div class="fade ${S.gradBlur?'soft':''}"></div>`;
-  else if (S.lyrics || S.rotBg) wash = `<img class="spin" src="${img}" alt="">`;
+  if (full) wash = (hasCv ? `<div class="cv${cut}"><img class="c1" src="${img}" data-lo="${lo}" alt=""><img class="c2" src="${img}" data-lo="${lo}" alt=""></div>` : `<img class="full${cut}" src="${img}" data-lo="${lo}" alt="">`) + `<div class="fade ${S.gradBlur?'soft':''}"></div>`;
+  else if (S.lyrics || S.rotBg) wash = `<img class="spin" src="${img}" data-lo="${lo}" alt="">`;
   const wbwOn = S.wbw && S.lyProvider !== 'lrclib';
   const tl = TRANS[S.trLang] && TRANS[S.trLang][S.cur];
   const lyricBody = lines
@@ -1516,9 +1527,9 @@ function buildPlayer(){
     : plainLy ? `<div class="lyrics" id="lyrics"><div class="gut">${plainLy.map(l=>`<p class="ly plain">${E(l)}</p>`).join('')}<p class="credit">Lyrics · ${E(parseLyricsProvider(S.cur)||'Unknown')} · not time-synced</p></div></div>`
     : `<div class="lyrics" id="lyrics"><div class="ly-empty">${LYR_STATE[S.cur]==='loading'||!LYR_STATE[S.cur]?'Loading lyrics…':'No lyrics found for this track.'}</div></div>`;
   const stage = S.lyrics ? lyricBody
-    : hasVid ? `<div class="p-stage gut"><div class="p-art vid"><img class="c1" src="${img}" alt=""><img class="c2" src="${img}" alt=""><span class="vtag">Music video · sample</span><div class="vbar"><i></i></div></div></div>`
+    : hasVid ? `<div class="p-stage gut"><div class="p-art vid"><img class="c1" src="${img}" data-lo="${lo}" alt=""><img class="c2" src="${img}" data-lo="${lo}" alt=""><span class="vtag">Music video · sample</span><div class="vbar"><i></i></div></div></div>`
     : full ? `<div class="p-stage"><span class="vtag cvtag" ${hasCv?'':'hidden'}>Canvas · sample</span></div>`
-    : `<div class="p-stage gut"><div class="p-art"><img src="${img}" alt="Cover art for ${E(al.title)}"></div></div>`;
+    : `<div class="p-stage gut"><div class="p-art"><img src="${img}" data-lo="${lo}" alt="Cover art for ${E(al.title)}"></div></div>`;
   player.className = 'player' + (S.player?' open':'') + (S.playing?' playing':' paused') + (full?' fullart':'');
   player.innerHTML = `<div class="wash${still}">${wash}</div>
     <div class="p-top gut"><button class="sq" data-act="close-player" aria-label="Close player">${ic('down')}</button><div class="mid"><small>Now playing</small><span>${E(S.source)}</span></div><button class="sq" data-act="sheet" data-v="queue" aria-label="Queue">${ic('queue')}</button></div>
