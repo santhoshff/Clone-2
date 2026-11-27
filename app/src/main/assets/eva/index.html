@@ -454,6 +454,19 @@ input[type=range]::-moz-range-thumb{width:6px;height:36px;border-radius:3px;back
 #login .lg-or{display:flex;align-items:center;gap:12px;margin:14px 2px 10px;color:#7f878c;font-size:13px}#login .lg-or:before,#login .lg-or:after{content:'';flex:1;height:1px;background:rgba(255,255,255,.12)}
 #login .lg-g{display:flex;align-items:center;justify-content:center;gap:12px;width:100%;height:52px;border-radius:999px;border:1px solid rgba(255,255,255,.22);background:rgba(255,255,255,.05);color:#eef1f2;font:inherit;font-size:16px;font-weight:600;cursor:pointer}#login .lg-g:active{transform:scale(.975)}#login .lg-g[disabled]{opacity:.6;cursor:progress}
 #login .lg-x{position:absolute;top:calc(env(safe-area-inset-top,0px) + 14px);right:16px;z-index:3;width:40px;height:40px;border-radius:50%;border:0;background:rgba(255,255,255,.08);color:#e8ecee;font-size:16px;cursor:pointer}
+#upd{position:fixed;inset:0;z-index:700;display:grid;place-items:center;padding:24px;background:rgba(0,0,0,.55);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+#upd .u-card{width:min(100%,340px);max-height:82dvh;display:flex;flex-direction:column;border-radius:26px;background:rgba(28,30,33,.94);color:var(--ink,#eef1f3);box-shadow:0 20px 60px rgba(0,0,0,.6);overflow:hidden;text-align:center}
+#upd .u-h{padding:22px 20px 12px;border-bottom:1px solid rgba(255,255,255,.08)}
+#upd .u-h b{display:block;font-size:19px;font-weight:600}#upd .u-h span{display:block;margin-top:4px;font-size:14px;opacity:.85}
+#upd .u-n{overflow-y:auto;padding:14px 20px;text-align:left;font-size:15px;line-height:1.4}
+#upd .u-n small{display:block;opacity:.6;font-size:13px;margin-bottom:6px}
+#upd .u-n h4{margin:0 0 8px;font-size:22px;font-weight:650}#upd .u-n h5{margin:12px 0 6px;font-size:16px}
+#upd .u-n ul{margin:0;padding-left:20px}#upd .u-n li{margin:0 0 8px}
+#upd .u-b{display:grid;border-top:1px solid rgba(255,255,255,.08)}
+#upd .u-b button{height:52px;border:0;background:none;color:inherit;font:inherit;font-size:16px;font-weight:600;cursor:pointer}
+#upd .u-b button+button{border-top:1px solid rgba(255,255,255,.08);font-weight:400}
+#upd .u-b button:disabled{opacity:.6}
+#upd .u-bar{height:4px;background:rgba(255,255,255,.12)}#upd .u-bar i{display:block;height:100%;width:0;background:var(--acc,#c6dce9);transition:width .2s}
 </style>
 
 <div id="app" aria-label="Eva Music">
@@ -1268,6 +1281,7 @@ function appearanceView(){
   return `<div class="hdr gut" style="padding-top:20px"><div class="back-row">${backBtn()}${search}<button class="ibtn" data-act="set-search" aria-label="${S.setSearch?'Close':'Search'} settings">${ic(S.setSearch?'back':'search')}</button></div></div>
   <div class="gut" id="setlist" style="padding-top:18px">
     <section data-grp>
+      ${window.evaUpdate?`<button class="set" data-s="check for updates software update version" data-act="checkupd"><span class="tile t1">${ic('dock')}</span><span class="tx"><b>Check for updates</b><span>Version ${evaUpdate.version()}</span></span>${ic('chev')}</button>`:''}
       ${window.evaAuth?(evaAuth.user()?`<button class="set" data-s="account sign out log out ${(evaAuth.user().name||'').toLowerCase()}" data-act="signout"><span class="tile t1">${ic('auto')}</span><span class="tx"><b>${evaAuth.user().name}</b><span>Signed in as ${evaAuth.user().email} \u00b7 your library and settings are saved to your account \u00b7 tap to sign out</span></span></button>`:`<button class="set" data-s="account sign in log in sign up create account save data cloud" data-act="signin"><span class="tile t1">${ic('auto')}</span><span class="tx"><b>Sign in</b><span>Optional. Sign in to save your library and settings to your account</span></span>${ic('chev')}</button>`):''}
       <div class="set col" data-s="theme system default light dark"><span class="tile t1">${ic('auto')}</span><span class="tx"><b>Theme</b><span>Choose system default, light, or dark</span></span><div class="seg" role="radiogroup" aria-label="Theme">${seg}</div></div>
       <div class="set col" data-s="app icon logo badge default pure white obsidian black eva"><span class="tile t1">${ic('dock')}</span><span class="tx"><b>App Icon</b><span>${ICONNAMES[S.appIcon][1]}</span></span><div class="icons" role="radiogroup" aria-label="App icon">${['default','white','black'].map(k=>`<button class="ico ${S.appIcon===k?'on':''}" role="radio" aria-checked="${S.appIcon===k}" data-act="appicon" data-v="${k}">${logoBadge(k,true)}<span>${ICONNAMES[k][0]}</span></button>`).join('')}</div></div>
@@ -1683,6 +1697,7 @@ function _act(name, el){
     case 'toggle': TOGGLES[v](); applyTheme(); refresh('preferences'); renderChrome(); break;
     case 'signout': window.evaAuth && evaAuth.out(); refresh('appearance'); toast('Signed out'); break;
     case 'signin': window.evaAuth && evaAuth.open(); break;
+    case 'checkupd': window.evaUpdate && evaUpdate.check(); break;
     case 'sheet': openSheet(v); break;
     case 'sheet-close': closeSheet(); break;
     case 'stats': openSheet('stats'); break;
@@ -2044,6 +2059,63 @@ window.evaOnLogin = (function(prev){ return function(s){ try{ prev && prev(s); }
 window.evaAuth = { out: signOut, user: () => (SESSION && SESSION.access_token ? SESSION : null), open: showLogin, isOpen: () => !!loginEl, close: () => { const b = document.querySelector('#login .lg-x'); if (b) b.click(); } };
 if (SESSION && SESSION.guest){ SESSION = null; LS.set('eva.session','null'); }
 if (SESSION) setTimeout(pushData, 4000);
+})();
+</script>
+<script>
+/* In-app updates: compares the installed build with the newest GitHub release */
+(function(){
+const REL = 'https://api.github.com/repos/santhoshff/Clone-2/releases/tags/latest';
+const N = window.EvaNative && window.EvaNative.appInfo ? window.EvaNative : null;
+if (!N) return;
+let info = {}; try { info = JSON.parse(N.appInfo()); } catch(e){ return; }
+const LSg = k => { try { return localStorage.getItem(k); } catch(e){ return null; } }, LSs = (k,v) => { try { localStorage.setItem(k,v); } catch(e){} };
+const esc = t => String(t).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function notes(md){
+  let out = '', ul = false;
+  for (const raw of md.split('\n')){
+    const l = raw.trim(); if (!l) continue;
+    const bullet = /^[-*] /.test(l);
+    if (ul && !bullet){ out += '</ul>'; ul = false; }
+    if (bullet){ if (!ul){ out += '<ul>'; ul = true; } out += '<li>' + esc(l.slice(2)) + '</li>'; }
+    else if (l.startsWith('## ')) out += '<h5>' + esc(l.slice(3)) + '</h5>';
+    else if (l.startsWith('# ')) out += '<h4>' + esc(l.slice(2)) + '</h4>';
+    else out += '<p>' + esc(l) + '</p>';
+  }
+  return out + (ul ? '</ul>' : '');
+}
+let el = null;
+function close(){ if (el){ el.remove(); el = null; } }
+function show(rel){
+  if (el) return;
+  const body = rel.body || '', m = body.match(/eva-build:\s*(\d+)/), build = m ? +m[1] : 0;
+  const assets = rel.assets || [], want = info.arm64 ? 'EvaMusic-debug.apk' : 'EvaMusic-debug-universal.apk';
+  const a = assets.find(x => x.name === want) || assets[0]; if (!a) return;
+  el = document.createElement('div'); el.id = 'upd'; el.setAttribute('role','dialog'); el.setAttribute('aria-label','Software update');
+  el.innerHTML = '<div class="u-card"><div class="u-h"><b>Software Update</b><span>Eva Music 1.0.' + build + ' is available to download.</span></div>'
+    + '<div class="u-n"><small>What\u2019s new</small>' + notes(body.replace(/eva-build:\s*\d+/, '')) + '</div><div class="u-bar"><i></i></div>'
+    + '<div class="u-b"><button class="u-go" type="button">Download Now</button><button class="u-later" type="button">Remind Me Later</button></div></div>';
+  document.body.appendChild(el);
+  const go = el.querySelector('.u-go'), later = el.querySelector('.u-later'), bar = el.querySelector('.u-bar i');
+  later.onclick = () => { LSs('eva.upd.snooze', String(Date.now() + 864e5)); close(); };
+  go.onclick = () => { if (go.dataset.mode === 'install'){ N.installDownloaded(); return; } go.disabled = true; go.textContent = 'Starting\u2026'; N.installUpdate(a.browser_download_url); };
+  window.__evaUpdate = o => {
+    if (!el) return;
+    if (o.state === 'downloading'){ go.disabled = true; go.textContent = o.pct >= 0 ? 'Downloading ' + o.pct + '%' : 'Downloading\u2026'; bar.style.width = (o.pct >= 0 ? o.pct : 5) + '%'; }
+    else if (o.state === 'ready'){ bar.style.width = '100%'; go.disabled = false; go.dataset.mode = 'install'; go.textContent = 'Install'; }
+    else if (o.state === 'perm'){ go.disabled = false; go.dataset.mode = 'install'; go.textContent = 'Allow installs, then tap here'; }
+    else if (o.state === 'error'){ go.disabled = false; go.dataset.mode = ''; go.textContent = 'Try again'; bar.style.width = '0'; if (window.alert) alert(o.msg || 'Update failed'); }
+  };
+}
+async function check(manual){
+  try {
+    const r = await fetch(REL, {headers:{Accept:'application/vnd.github+json'}}); if (!r.ok) throw 0;
+    const rel = await r.json(), m = (rel.body || '').match(/eva-build:\s*(\d+)/), latest = m ? +m[1] : 0;
+    if (latest > info.build){ if (manual || +(LSg('eva.upd.snooze') || 0) < Date.now()) show(rel); }
+    else if (manual) alert('Eva Music is up to date (version ' + (info.version || '') + ').');
+  } catch(e){ if (manual) alert('Could not check for updates. Check your connection.'); }
+}
+window.evaUpdate = { check: () => check(true), version: () => info.version };
+setTimeout(() => check(false), 4000);
 })();
 </script>
 </body></html>

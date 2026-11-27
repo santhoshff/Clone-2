@@ -26,7 +26,7 @@ jobs:
       - run: chmod +x gradlew
 
       - name: Build debug APK
-        run: ./gradlew :app:assembleDevDebug --no-daemon --stacktrace
+        run: ./gradlew :app:assembleDevDebug -PevaBuild=${{ github.run_number }} --no-daemon --stacktrace
 
       - name: Verify the APK
         run: |
@@ -55,6 +55,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release delete latest --yes --cleanup-tag 2>/dev/null || true
+          { echo "eva-build: ${{ github.run_number }}"; echo; cat RELEASE_NOTES.md; } > notes.md
           gh release create latest EvaMusic-debug.apk EvaMusic-debug-universal.apk --prerelease \
-            --title "Eva Music (latest debug build)" \
-            --notes "Debug-signed APK built from ${GITHUB_SHA::7}. EvaMusic-debug.apk is for modern 64-bit (arm64) phones; use the universal file if it will not install."
+            --title "Eva Music (latest build)" --notes-file notes.md

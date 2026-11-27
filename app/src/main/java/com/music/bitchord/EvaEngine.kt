@@ -98,6 +98,76 @@ class EvaEngine(private val activity: android.app.Activity, private val web: Web
         scope.cancel()
     }
 
+
+    // ---------- in-app updates ----------
+
+    private val apkFile get() = java.io.File(activity.cacheDir, "updates/EvaMusic.apk")
+
+    /** Which build is installed, so the page can tell whether a newer one exists. */
+    @JavascriptInterface
+    fun appInfo(): String {
+        val pi = activity.packageManager.getPackageInfo(activity.packageName, 0)
+        val code = if (android.os.Build.VERSION.SDK_INT >= 28) pi.longVersionCode else @Suppress("DEPRECATION") pi.versionCode.toLong()
+        return JSONObject()
+            .put("build", code - 1000)
+            .put("version", pi.versionName ?: "")
+            .put("arm64", android.os.Build.SUPPORTED_ABIS.contains("arm64-v8a"))
+            .toString()
+    }
+
+    private fun updateState(json: JSONObject) =
+        main.post { web.evaluateJavascript("(window.__evaUpdate&&__evaUpdate($json))", null) }
+
+    /** Downloads a release APK from this app's own GitHub releases and hands it to the installer. */
+    @JavascriptInterface
+    fun installUpdate(url: String) {
+        if (!url.startsWith("https://github.com/santhoshff/Clone-2/releases/download/")) {
+            updateState(JSONObject().put("state", "error").put("msg", "Unexpected update address"))
+            return
+        }
+        scope.launch(Dispatchers.IO) {
+            try {
+                val out = apkFile.also { it.parentFile?.mkdirs(); it.delete() }
+                val c = java.net.URL(url).openConnection() as java.net.HttpURLConnection
+                c.connectTimeout = 15000; c.readTimeout = 30000; c.instanceFollowRedirects = true
+                if (c.responseCode !in 200..299) error("Download failed (${c.responseCode})")
+                val total = c.contentLengthLong
+                var done = 0L; var lastPct = -1
+                c.inputStream.use { inp -> out.outputStream().use { o ->
+                    val buf = ByteArray(64 * 1024)
+                    while (true) {
+                        val n = inp.read(buf); if (n < 0) break
+                        o.write(buf, 0, n); done += n
+                        val pct = if (total > 0) (done * 100 / total).toInt() else -1
+                        if (pct != lastPct) { lastPct = pct; updateState(JSONObject().put("state", "downloading").put("pct", pct)) }
+                    }
+                } }
+                updateState(JSONObject().put("state", "ready"))
+                main.post { launchInstaller() }
+            } catch (e: Throwable) {
+                updateState(JSONObject().put("state", "error").put("msg", e.message ?: "Download failed"))
+            }
+        }
+    }
+
+    @JavascriptInterface
+    fun installDownloaded() { main.post { launchInstaller() } }
+
+    private fun launchInstaller() {
+        val f = apkFile
+        if (!f.exists()) { updateState(JSONObject().put("state", "error").put("msg", "Update file is missing. Download it again.")); return }
+        if (android.os.Build.VERSION.SDK_INT >= 26 && !activity.packageManager.canRequestPackageInstalls()) {
+            updateState(JSONObject().put("state", "perm"))
+            activity.startActivity(android.content.Intent(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                android.net.Uri.parse("package:" + activity.packageName)))
+            return
+        }
+        val uri = androidx.core.content.FileProvider.getUriForFile(activity, activity.packageName + ".fileprovider", f)
+        activity.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW)
+            .setDataAndType(uri, "application/vnd.android.package-archive")
+            .addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION or android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
+    }
+
     // ---------- data requests ----------
 
     @JavascriptInterface

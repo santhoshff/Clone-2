@@ -80,8 +80,11 @@ android {
         // Haze falls back to a translucent scrim below that.
         minSdk = 26
         targetSdk = 36
-        versionCode = 75
-        versionName = "2.2.13"
+        // The workflow passes -PevaBuild=<run number>; each build is one higher, which is what lets
+        // the in-app updater tell that a newer build exists and lets Android install it over this one.
+        val evaBuild = (project.findProperty("evaBuild") as String?)?.toIntOrNull() ?: 0
+        versionCode = 1000 + evaBuild
+        versionName = "1.0.$evaBuild"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -128,6 +131,13 @@ android {
     }
 
     signingConfigs {
+        // One fixed key for every Eva Music build, so a new build installs over the old one.
+        create("evaDebug") {
+            storeFile = rootProject.file("app/eva-debug.keystore")
+            storePassword = "evamusic"
+            keyAlias = "eva"
+            keyPassword = "evamusic"
+        }
         // Both halves have to be there, not just the properties file: it *names*
         // the keystore rather than containing it, and both are gitignored
         // separately, so a checkout can easily end up with the one and not the
@@ -148,6 +158,7 @@ android {
 
     buildTypes {
         debug {
+            signingConfig = signingConfigs.getByName("evaDebug")
             if (betaSuffix.isNotEmpty()) versionNameSuffix = "-$betaSuffix"
         }
         release {
