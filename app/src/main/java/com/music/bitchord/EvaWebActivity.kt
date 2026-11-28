@@ -28,6 +28,7 @@ class EvaWebActivity : AppCompatActivity() {
     private lateinit var web: WebView
     private lateinit var engine: EvaEngine
     private var pendingAuth: String? = null
+    private var pendingCar = false
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -50,7 +51,7 @@ class EvaWebActivity : AppCompatActivity() {
                 builtInZoomControls = false
             }
             webViewClient = object : WebViewClient() {
-                override fun onPageFinished(view: WebView, url: String?) { deliverAuth() }
+                override fun onPageFinished(view: WebView, url: String?) { deliverAuth(); if (pendingCar) { pendingCar = false; engine.openCar() } }
 
                 override fun shouldInterceptRequest(
                     view: WebView,
@@ -104,6 +105,7 @@ class EvaWebActivity : AppCompatActivity() {
         })
 
         pendingAuth = authLink(intent)
+        if (intent.data?.let { it.scheme == "evamusic" && it.host == "car" } == true) pendingCar = true
         if (savedInstanceState != null) web.restoreState(savedInstanceState)
         else web.loadUrl("https://$HOST/index.html")
     }
@@ -111,6 +113,7 @@ class EvaWebActivity : AppCompatActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         authLink(intent)?.let { pendingAuth = it; deliverAuth() }
+        if (intent.data?.let { it.scheme == "evamusic" && it.host == "car" } == true) engine.openCar()
     }
 
     private fun authLink(i: Intent?): String? =

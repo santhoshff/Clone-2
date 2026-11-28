@@ -1,6 +1,7 @@
 package com.music.bitchord
 
 import android.content.ComponentName
+import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.webkit.JavascriptInterface
@@ -41,6 +42,7 @@ import org.json.JSONObject
 object EvaBridge {
     @Volatile var onNext: (() -> Unit)? = null
     @Volatile var onPrev: (() -> Unit)? = null
+    @Volatile var onLike: (() -> Unit)? = null
 }
 
 class EvaEngine(private val activity: android.app.Activity, private val web: WebView) {
@@ -75,6 +77,7 @@ class EvaEngine(private val activity: android.app.Activity, private val web: Web
         AppSettings.setAutoplay(false)
         EvaBridge.onNext = { main.post { web.evaluateJavascript("(window.evaCmd&&evaCmd('next'))", null) } }
         EvaBridge.onPrev = { main.post { web.evaluateJavascript("(window.evaCmd&&evaCmd('prev'))", null) } }
+        EvaBridge.onLike = { main.post { web.evaluateJavascript("(window.evaCmd&&evaCmd('like'))", null) } }
         main.post {
             val token = SessionToken(activity, ComponentName(activity, PlaybackService::class.java))
             val f = MediaController.Builder(activity, token).buildAsync()
@@ -91,6 +94,8 @@ class EvaEngine(private val activity: android.app.Activity, private val web: Web
     fun release() {
         EvaBridge.onNext = null
         EvaBridge.onPrev = null
+        EvaBridge.onLike = null
+        stopListen()
         main.removeCallbacks(ticker)
         controller?.removeListener(listener)
         future?.let { MediaController.releaseFuture(it) }
@@ -168,6 +173,125 @@ class EvaEngine(private val activity: android.app.Activity, private val web: Web
             .addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION or android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
     }
 
+    // ---------- playlist import ----------
+
+    private suspend fun spotify(url: String): JSONObject {
+        val id = com.music.bitchord.data.spotify.SpotifyImporter.extractPlaylistId(url)
+            ?: error("That doesn't look like a Spotify playlist link")
+        val (title, tracks) = com.music.bitchord.data.spotify.SpotifyImporter.fetchPlaylistTracks(id)
+        val arr = JSONArray()
+        tracks.forEach { arr.put(JSONObject().put("title", it.title).put("artist", it.artist)) }
+        return JSONObject().put("name", title).put("tracks", arr)
+    }
+
+    private suspend fun ytPlaylist(list: String): JSONObject {
+        val id = list.removePrefix("VL")
+        val songs = YtMusicRepository.allSongs("VL$id").getOrThrow()
+        val arr = JSONArray()
+        songs.distinctBy { it.videoId }.forEach { arr.put(track(it)) }
+        return JSONObject().put("name", "YouTube playlist").put("songs", arr)
+    }
+
+    // ---------- sleep timer, vocal level, share, notifications ----------
+
+    /** minutes > 0 starts a timer, -1 stops after this song, 0 cancels. */
+    @JavascriptInterface
+    fun sleep(minutes: Int) {
+        main.post {
+            when {
+                minutes > 0 -> com.music.bitchord.playback.SleepTimer.start(minutes)
+                minutes < 0 -> com.music.bitchord.playback.SleepTimer.startAfterTrack()
+                else -> com.music.bitchord.playback.SleepTimer.cancel()
+            }
+            runCatching { com.music.bitchord.widget.MediaWidget.refresh(activity) }
+        }
+    }
+
+    /** Minutes left (0 when off, -1 when waiting for the song to end). */
+    @JavascriptInterface
+    fun sleepLeft(): Int {
+        val st = com.music.bitchord.playback.SleepTimer
+        if (st.afterTrack.value) return -1
+        return ((st.remainingMs() ?: 0L) / 60000L).toInt() + if ((st.remainingMs() ?: 0L) > 0) 1 else 0
+    }
+
+    /** Lead vocal level: 1 = full, 0 = off. */
+    @JavascriptInterface
+    fun setVocal(level: Float) { AppSettings.setSingLevel(1f - level.coerceIn(0f, 1f)) }
+
+    @JavascriptInterface
+    fun share(text: String) {
+        main.post {
+            val i = android.content.Intent(android.content.Intent.ACTION_SEND).setType("text/plain")
+                .putExtra(android.content.Intent.EXTRA_TEXT, text)
+            activity.startActivity(android.content.Intent.createChooser(i, "Share").addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
+        }
+    }
+
+    @JavascriptInterface
+    fun notify(title: String, text: String) {
+        val nm = activity.getSystemService(android.content.Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
+        if (android.os.Build.VERSION.SDK_INT >= 26)
+            nm.createNotificationChannel(android.app.NotificationChannel("eva_new", "New releases", android.app.NotificationManager.IMPORTANCE_DEFAULT))
+        val open = android.app.PendingIntent.getActivity(activity, 78, android.content.Intent(activity, EvaWebActivity::class.java),
+            android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE)
+        val n = androidx.core.app.NotificationCompat.Builder(activity, "eva_new").setSmallIcon(android.R.drawable.ic_media_play)
+            .setContentTitle(title).setContentText(text).setContentIntent(open).setAutoCancel(true).build()
+        runCatching { nm.notify((System.currentTimeMillis() % 100000).toInt(), n) }
+    }
+
+    /** Car mode: open by itself when the phone joins a car's Bluetooth. */
+    @JavascriptInterface
+    fun carAuto(on: Boolean) {
+        activity.getSharedPreferences("eva", android.content.Context.MODE_PRIVATE).edit().putBoolean("car_auto", on).apply()
+        if (on && android.os.Build.VERSION.SDK_INT >= 31)
+            main.post { activity.requestPermissions(arrayOf(android.Manifest.permission.BLUETOOTH_CONNECT), 902) }
+    }
+
+    @JavascriptInterface
+    fun carAutoOn(): Boolean = activity.getSharedPreferences("eva", android.content.Context.MODE_PRIVATE).getBoolean("car_auto", false)
+
+    // ---------- voice: hum / sing / say ----------
+
+    private var recognizer: android.speech.SpeechRecognizer? = null
+
+    private fun voice(kind: String, text: String) {
+        web.post { web.evaluateJavascript("window.__evaVoice&&window.__evaVoice(${JSONObject.quote(kind)},${JSONObject.quote(text)})", null) }
+    }
+
+    @JavascriptInterface
+    fun listen() {
+        main.post {
+            if (activity.checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                activity.requestPermissions(arrayOf(android.Manifest.permission.RECORD_AUDIO), 901)
+                voice("perm", ""); return@post
+            }
+            if (!android.speech.SpeechRecognizer.isRecognitionAvailable(activity)) { voice("error", "Speech recognition isn't available on this phone"); return@post }
+            stopListen()
+            val r = android.speech.SpeechRecognizer.createSpeechRecognizer(activity)
+            recognizer = r
+            r.setRecognitionListener(object : android.speech.RecognitionListener {
+                override fun onReadyForSpeech(p: Bundle?) { voice("ready", "") }
+                override fun onBeginningOfSpeech() {}
+                override fun onRmsChanged(v: Float) { web.post { web.evaluateJavascript("window.__evaLevel&&window.__evaLevel($v)", null) } }
+                override fun onBufferReceived(b: ByteArray?) {}
+                override fun onEndOfSpeech() {}
+                override fun onError(e: Int) { voice("error", if (e == android.speech.SpeechRecognizer.ERROR_NO_MATCH || e == android.speech.SpeechRecognizer.ERROR_SPEECH_TIMEOUT) "I didn't catch anything. Try again closer to the phone." else "Couldn't listen (code $e)") }
+                override fun onResults(b: Bundle?) { voice("final", b?.getStringArrayList(android.speech.SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull().orEmpty()) }
+                override fun onPartialResults(b: Bundle?) { voice("partial", b?.getStringArrayList(android.speech.SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull().orEmpty()) }
+                override fun onEvent(t: Int, p: Bundle?) {}
+            })
+            r.startListening(android.content.Intent(android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
+                .putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE_MODEL, android.speech.RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                .putExtra(android.speech.RecognizerIntent.EXTRA_PARTIAL_RESULTS, true))
+        }
+    }
+
+    @JavascriptInterface
+    fun stopListen() { main.post { recognizer?.let { runCatching { it.destroy() } }; recognizer = null } }
+
+    fun openCar() { web.post { web.evaluateJavascript("window.evaX&&evaX.car()", null) } }
+
     // ---------- data requests ----------
 
     @JavascriptInterface
@@ -179,6 +303,8 @@ class EvaEngine(private val activity: android.app.Activity, private val web: Web
                     "search" -> search(a.optString("q"))
                     "recs" -> recs(a.optString("genre"), a.optInt("limit", 20))
                     "lyrics" -> lyrics(a)
+                    "spotify" -> spotify(a.optString("url"))
+                    "ytplaylist" -> ytPlaylist(a.optString("list"))
                     else -> error("Unknown method $method")
                 }
                 reply("__evaResolve", id, out.toString())

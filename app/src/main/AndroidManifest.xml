@@ -15,6 +15,8 @@
     <!-- Touch feedback. The system's own haptics switch is honoured on top of
          this, so granting it doesn't override a user who turned buzzing off. -->
     <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
 
     <!--
       Asked for only when the output picker is first opened, and only on API 31+
@@ -123,6 +125,7 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="evamusic" android:host="auth" />
+                <data android:scheme="evamusic" android:host="car" />
             </intent-filter>
         </activity>
 
@@ -166,8 +169,16 @@
           are sent with this app's own identity. Exporting them would only make
           the update broadcast reachable by anything on the device.
         -->
+        <!-- Car mode: fires when the phone joins a car's Bluetooth. -->
         <receiver
-            android:enabled="false"
+            android:name=".CarBluetoothReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.bluetooth.device.action.ACL_CONNECTED" />
+            </intent-filter>
+        </receiver>
+
+        <receiver
             android:name=".widget.MediaWidgetSquare"
             android:exported="false"
             android:label="@string/widget_square_label">
@@ -180,7 +191,6 @@
         </receiver>
 
         <receiver
-            android:enabled="false"
             android:name=".widget.MediaWidgetWide"
             android:exported="false"
             android:label="@string/widget_wide_label">
@@ -194,7 +204,6 @@
 
         <!-- The 4×1 capsule. Its own provider and layout; see MediaWidgetPill. -->
         <receiver
-            android:enabled="false"
             android:name=".widget.MediaWidgetPill"
             android:exported="false"
             android:label="@string/widget_pill_label">
@@ -208,7 +217,6 @@
 
         <!-- The transport buttons. Reached only by this app's own PendingIntents. -->
         <receiver
-            android:enabled="false"
             android:name=".widget.MediaWidgetActions"
             android:exported="false" />
 

@@ -675,12 +675,13 @@ const S = {
   mood:['focus'], energy:45, length:10, generated:[], q:''
 };
 S.qi = S.queue.indexOf(S.cur);
-Object.assign(S, {appIcon:'default', theme:'dark', scheme:'dark', amoled:true, accent:'ocean', customHex:'#6d5bd0', signature:false, dynColor:false, navM3:true, hideTabs:false, dynNP:true, appFont:true, boldFont:false,
+Object.assign(S, {appIcon:'default', theme:'dark', scheme:'dark', amoled:true, accent:'ocean', customHex:'#6d5bd0', signature:false, dynColor:false, bgTone:'', navM3:true, hideTabs:false, dynNP:true, appFont:true, boldFont:false,
   wbw:true, wavy:true, rotBg:true, lyMotion:true, lyProvider:'apple', lyOffset:0, lySize:100, lyHide:5, trLang:'app', musicVideo:true, btnNP:false, canvas:true, fullArt:true, gradBlur:true, canvasCell:true});
-const PERSIST = ['appIcon','theme','amoled','accent','customHex','signature','dynColor','navM3','hideTabs','dynNP','appFont','boldFont','wbw','wavy','rotBg','lyMotion','lyProvider','lyOffset','lySize','lyHide','trLang','musicVideo','btnNP','canvas','fullArt','gradBlur','canvasCell','glass','glassLevel','lyricAnim','quality','automix','crossfade','scrobble'];
+const PERSIST = ['appIcon','theme','amoled','accent','customHex','signature','dynColor','bgTone','navM3','hideTabs','dynNP','appFont','boldFont','wbw','wavy','rotBg','lyMotion','lyProvider','lyOffset','lySize','lyHide','trLang','musicVideo','btnNP','canvas','fullArt','gradBlur','canvasCell','glass','glassLevel','lyricAnim','quality','automix','crossfade','scrobble'];
 function loadSettings(){ try { const o = JSON.parse(localStorage.getItem('eva.settings')||'{}'); PERSIST.forEach(k=>{ if (k in o && typeof o[k]===typeof S[k]) S[k]=o[k]; }); } catch(e){} }
 function saveSettings(){ try { const o = {}; PERSIST.forEach(k=>o[k]=S[k]); localStorage.setItem('eva.settings', JSON.stringify(o)); } catch(e){} }
 function applyTheme(){
+  try { window.evaX && evaX.beforeTheme(S); } catch(e){}
   const dark = matchMedia('(prefers-color-scheme: dark)').matches;
   S.scheme = S.theme==='system' ? (dark?'dark':'light') : S.theme;
   const d = document.documentElement;
@@ -689,6 +690,7 @@ function applyTheme(){
   const root = $('#app'); setAcc(root, globalAcc());
   root.style.setProperty('--lys', (S.lySize/100).toFixed(2));
   root.dataset.glass = S.glassLevel || 'medium';
+  try { d.dataset.bg = S.bgTone || ''; } catch(e){}
   root.classList.toggle('glass', S.glass); root.classList.toggle('classic', !S.navM3); root.classList.toggle('btnnp', S.btnNP);
 }
 function reaccent(){
@@ -1220,6 +1222,7 @@ function homeView(){
   const list = homeList();
   return `<div class="hdr gut"><div class="hdr-row"><h1 class="wordmark">${logoBadge(S.appIcon)}Eva Music</h1>
       <div class="hdr-act"><button class="ibtn" data-go="discover" aria-label="Discover">${ic('explore')}</button><button class="ibtn" data-go="search" aria-label="Search">${ic('search')}</button><button class="avatar" data-go="preferences" aria-label="Preferences"><span>G</span></button></div></div></div>
+    ${window.evaX?evaX.chips():''}
     ${viralSection()}
     <section class="listcard"><header><h2 class="h2">${HISTORY.length?'List':'Trending'}</h2><button class="select" data-act="sheet" data-v="homesort">${ic('clock')}${S.homeSort==='plays'?'Most played':'Recent'}${ic('down')}</button></header>
       <div class="rows-flat">${list.length?list.map(id=>trackRow(TR[id],{hl:true,badge:true,list:'home'})).join(''):`<div class="empty">${S.loading?'Loading…':'Nothing here yet.<br>Search for a song to start listening.'}</div>`}</div></section>`;
@@ -1266,10 +1269,11 @@ function artistView(id){
   const genres = a.genres.length ? a.genres : ['Music'];
   return `<div data-accent="${al.id}"><div class="gut" style="padding-top:20px">${backBtn()}</div>
     <div class="ahero"><img ${artHi(al,800)} alt=""><div class="meta"><div class="nm"><span>${E(a.name)}</span>${a.verified?ic('verified'):''}</div><span class="lstn">${tr.length} tracks</span></div></div>
+    ${window.evaX?evaX.followBar(id):''}
     <div class="gut"><div class="actions" style="margin-top:20px"><button class="circ xl" data-act="play-artist" data-v="${id}" data-shuf="1" aria-label="Shuffle">${ic('shuffle')}</button><button class="circ xl" data-act="artist-radio" data-v="${id}" aria-label="Radio">${ic('radio')}</button><button class="circ fab" data-act="play-artist" data-v="${id}" aria-label="Play ${E(a.name)}">${ic('play')}</button></div>
       <div class="chips-o">${genres.map(g=>`<span class="chip-o">${E(g)}</span>`).join('')}</div>
-      <div class="sec-h"><h2 class="h2">Songs</h2><span class="sub">${tr.length} tracks</span></div></div>
-    <div class="gut rows-flat" style="padding-inline:max(8px,env(safe-area-inset-left,0px))">${tr.map(t=>trackRow(t,{hl:true,list:'artist:'+id})).join('')}</div></div>`;
+      <div class="sec-h"><h2 class="h2">Popular songs</h2><span class="sub">${tr.length} tracks</span></div></div>
+    <div class="gut rows-flat" style="padding-inline:max(8px,env(safe-area-inset-left,0px))">${tr.map(t=>trackRow(t,{hl:true,list:'artist:'+id})).join('')}</div>${window.evaX?evaX.albums(id):''}</div>`;
 }
 function searchView(){
   return `<div class="gut" style="padding-top:20px"><div class="back-row">${backBtn()}<label class="search-box">${ic('search')}<input id="q" type="search" placeholder="Songs, artists, albums" value="${E(S.q)}" autocomplete="off" aria-label="Search"></label></div></div>
@@ -1365,6 +1369,7 @@ function appearanceView(){
   return `<div class="hdr gut" style="padding-top:20px"><div class="back-row">${backBtn()}${search}<button class="ibtn" data-act="set-search" aria-label="${S.setSearch?'Close':'Search'} settings">${ic(S.setSearch?'back':'search')}</button></div></div>
   <div class="gut" id="setlist" style="padding-top:18px">
     <section data-grp>
+      ${window.evaX?evaX.rows():''}
       ${window.evaUpdate?`<button class="set" data-s="check for updates software update version" data-act="checkupd"><span class="tile t1">${ic('dock')}</span><span class="tx"><b>Check for updates</b><span>Version ${evaUpdate.version()}</span></span>${ic('chev')}</button>`:''}
       ${window.evaAuth?(evaAuth.user()?`<button class="set" data-s="account sign out log out ${(evaAuth.user().name||'').toLowerCase()}" data-act="signout"><span class="tile t1">${ic('auto')}</span><span class="tx"><b>${evaAuth.user().name}</b><span>Signed in as ${evaAuth.user().email} \u00b7 your library and settings are saved to your account \u00b7 tap to sign out</span></span></button>`:`<button class="set" data-s="account sign in log in sign up create account save data cloud" data-act="signin"><span class="tile t1">${ic('auto')}</span><span class="tx"><b>Sign in</b><span>Optional. Sign in to save your library and settings to your account</span></span>${ic('chev')}</button>`):''}
       <div class="set col" data-s="theme system default light dark"><span class="tile t1">${ic('auto')}</span><span class="tx"><b>Theme</b><span>Choose system default, light, or dark</span></span><div class="seg" role="radiogroup" aria-label="Theme">${seg}</div></div>
@@ -1535,6 +1540,7 @@ function buildPlayer(){
     <div class="p-top gut"><button class="sq" data-act="close-player" aria-label="Close player">${ic('down')}</button><div class="mid"><small>Now playing</small><span>${E(S.source)}</span></div><button class="sq" data-act="sheet" data-v="queue" aria-label="Queue">${ic('queue')}</button></div>
     ${stage}
     <div class="gut bot"><div class="p-info"><div class="tt"><h2>${E(t.title)}</h2><button class="p-chip" data-act="open-artist" data-v="${ar.id}">${E(ar.name)}</button></div>
+        <button class="lyr" data-act="x" data-v="karaoke" aria-label="Karaoke mode">${ic('lyrics')}</button>
         <button class="lyr ${isLiked(t.id)?'on':''}" data-act="like" data-v="${t.id}" aria-label="${isLiked(t.id)?'Remove from':'Add to'} Liked songs" aria-pressed="${isLiked(t.id)}">${ic('heart')}</button>
         <button class="lyr ${S.lyrics?'on':''}" data-act="lyrics" aria-label="${S.lyrics?'Hide':'Show'} lyrics" aria-pressed="${S.lyrics}">${ic('lyrics')}</button></div>
       <div class="seek"><svg id="seekSvg" role="slider" aria-label="Seek" aria-valuemin="0" aria-valuemax="${t.dur}" aria-valuenow="${Math.floor(S.pos)}" tabindex="0"></svg><div class="times tab-num"><span id="tNow">${fmt(S.pos)}</span><span id="tLeft">−${fmt(t.dur-S.pos)}</span></div></div>
@@ -1730,10 +1736,12 @@ window.evaCmd = function(c){
   else if (c==='pause') audio.pause();
   else if (c==='next') nextTrack(false);
   else if (c==='prev') prevTrack();
+  else if (c==='like'){ if (S.cur) toggleLike(S.cur); }
   else if (c.indexOf('seek:')===0) seekTo(Number(c.slice(5))/1000);
 };
+window.__eva = {nreq, get S(){return S;}, TR, ALB, ART, TRACKS, HISTORY, LIKED, PLAYLISTS, LIB, saveLib, rid, nowIso, rowMeta, meta, E, ic, ingestAll, api, playTrack, nextTrack, prevTrack, togglePlay, toggleLike, isLiked, audio, toast, refresh, refreshAll, applyTheme, reaccent, saveSettings, go, art, artHi, hslOf, artistTracks, loadLibrary, loadArtist, fetchLyrics, LYR_STATE, LYR_PLAIN, PLAYS, get LYRICS(){return LYRICS;}, lyPos, seekTo, getHist:()=>LIB.history};
 window.evaOnLogin = function(){ try { refresh('appearance'); toast('Signed in'); } catch(e){} };
-window.evaBack = function(){ if (window.evaAuth && evaAuth.isOpen()){ evaAuth.close(); return true; } if (S.sheet || S.player || S.stack.length){ back(); return true; } return false; };
+window.evaBack = function(){ if (window.evaX && evaX.isOpen()){ evaX.close(); return true; } if (window.evaAuth && evaAuth.isOpen()){ evaAuth.close(); return true; } if (S.sheet || S.player || S.stack.length){ back(); return true; } return false; };
 window.addEventListener('hashchange', ()=>{
   if (hashGuard){ hashGuard = false; if (location.hash.slice(1) === routeName()) return; }
   const n = location.hash.slice(1); if (n === routeName()) return;
@@ -1783,6 +1791,7 @@ function _act(name, el){
     case 'toggle': TOGGLES[v](); applyTheme(); refresh('preferences'); renderChrome(); break;
     case 'signout': window.evaAuth && evaAuth.out(); refresh('appearance'); toast('Signed out'); break;
     case 'signin': window.evaAuth && evaAuth.open(); break;
+    case 'x': window.evaX && evaX.open(el.dataset.v); break;
     case 'checkupd': window.evaUpdate && evaUpdate.check(); break;
     case 'sheet': openSheet(v); break;
     case 'sheet-close': closeSheet(); break;
@@ -2204,4 +2213,5 @@ window.evaUpdate = { check: () => check(true), version: () => info.version };
 setTimeout(() => check(false), 4000);
 })();
 </script>
+<script src="features.js"></script>
 </body></html>

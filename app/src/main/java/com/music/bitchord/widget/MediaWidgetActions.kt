@@ -38,6 +38,19 @@ class MediaWidgetActions : BroadcastReceiver() {
         val action = intent.action?.takeIf { it in ACTIONS } ?: return
         val app = context.applicationContext
 
+        // Sleep timer lives in the shuffle slot: tap to stop music in 30 minutes, tap again to cancel.
+        if (action == ACTION_SHUFFLE) {
+            val st = com.music.bitchord.playback.SleepTimer
+            if (st.isRunning) st.cancel() else st.start(30)
+            MediaWidget.refresh(app)
+            return
+        }
+        // Likes live in Eva's own library, so hand the tap to the open app first.
+        if (action == ACTION_LIKE) {
+            val like = com.music.bitchord.EvaBridge.onLike
+            if (like != null) { like(); return }
+        }
+
         // Held open across the connect: a controller that arrives after the
         // broadcast has returned arrives in a process that may already be gone.
         val pending = goAsync()

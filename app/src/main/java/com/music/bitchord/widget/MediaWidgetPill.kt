@@ -174,11 +174,11 @@ class MediaWidgetPill : AppWidgetProvider() {
             views.setInt(
                 R.id.widget_shuffle,
                 "setBackgroundResource",
-                if (snapshot.shuffleEnabled) R.drawable.widget_toggle_on else R.drawable.widget_transport_button,
+                if (com.music.bitchord.playback.SleepTimer.isRunning) R.drawable.widget_toggle_on else R.drawable.widget_transport_button,
             )
             views.setContentDescription(
                 R.id.widget_shuffle,
-                context.getString(if (snapshot.shuffleEnabled) R.string.shuffle_on else R.string.shuffle_off),
+                if (com.music.bitchord.playback.SleepTimer.isRunning) "Sleep timer on. Tap to cancel" else "Sleep timer. Tap to stop music in 30 minutes",
             )
 
             val open = openPlayer(context)
