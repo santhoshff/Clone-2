@@ -45,14 +45,15 @@ css.textContent = `
 html[data-bg=grey][data-scheme=dark]{--bg:#25272b;--s1:#2e3135;--s2:#373a3f;--s3:#41454a;--s4:#4f5459;--hdr-a:#43464b;--hdr-b:#2a2c30;--navbg:#2e3135;--sheetbg:#2b2e32;--wash2:#202225}
 .xchips{display:flex;gap:8px;overflow-x:auto;padding:4px 16px 14px;scrollbar-width:none}
 .xchips::-webkit-scrollbar{display:none}
-.xchip{flex:none;display:flex;align-items:center;gap:8px;min-height:44px;padding:0 16px 0 12px;border-radius:99px;border:0;background:var(--s2);color:var(--ink);font:600 14px/1 inherit;font-family:inherit;cursor:pointer}
+.xchip{flex:none;display:flex;align-items:center;gap:8px;min-height:44px;padding:0 16px 0 12px;border-radius:99px;border:0;background:var(--s2);color:var(--ink);font-weight:600;font-size:14px;line-height:1;font-family:inherit;cursor:pointer}
 .xchip:active{transform:scale(.97)}
 .xchip svg{color:var(--acc)}
 .xo{position:fixed;inset:0;z-index:95;display:flex;flex-direction:column;background:var(--bg);color:var(--ink);font-family:inherit;animation:xin .22s ease-out;overflow:hidden}
 @keyframes xin{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
 .xo .xtop{display:flex;align-items:center;gap:12px;padding:calc(14px + env(safe-area-inset-top,0px)) 16px 8px}
 .xo .xtop h2{flex:1;margin:0;font-size:26px;font-weight:700;letter-spacing:-.01em}
-.xbtn{min-width:48px;height:48px;border-radius:24px;border:0;background:var(--s2);color:var(--ink);display:inline-grid;place-items:center;font:600 15px inherit;font-family:inherit;cursor:pointer;padding:0 18px}
+.xbtn,.xchip,.xseg button,.xcar button{text-align:center}
+.xbtn{min-width:48px;height:48px;border-radius:24px;border:0;background:var(--s2);color:var(--ink);display:inline-grid;place-items:center;font-weight:600;font-size:15px;font-family:inherit;cursor:pointer;padding:0 18px}
 .xbtn.sq{width:48px;padding:0}
 .xbtn.pri{background:var(--acc);color:var(--on-acc,#000)}
 .xbtn:disabled{opacity:.45}
@@ -60,7 +61,7 @@ html[data-bg=grey][data-scheme=dark]{--bg:#25272b;--s1:#2e3135;--s2:#373a3f;--s3
 .xbody{flex:1;overflow-y:auto;padding:4px 16px calc(24px + env(safe-area-inset-bottom,0px))}
 .xsub{margin:0 0 14px;color:var(--ink-2);font-size:14px;line-height:1.45}
 .xseg{display:flex;gap:6px;padding:5px;background:var(--s2);border-radius:99px;margin:6px 0 16px}
-.xseg button{flex:1;min-height:44px;border:0;border-radius:99px;background:transparent;color:var(--ink-2);font:600 14px inherit;font-family:inherit;cursor:pointer}
+.xseg button{display:flex;align-items:center;justify-content:center;padding:0 6px;flex:1;min-height:44px;border:0;border-radius:99px;background:transparent;color:var(--ink-2);font-weight:600;font-size:14px;font-family:inherit;cursor:pointer}
 .xseg button.on{background:var(--acc);color:var(--on-acc,#000)}
 .xcard{background:var(--s1);border-radius:24px;padding:16px;margin-bottom:12px}
 .xlbl{font-size:13px;color:var(--ink-3);margin:18px 2px 8px}
@@ -68,7 +69,7 @@ html[data-bg=grey][data-scheme=dark]{--bg:#25272b;--s1:#2e3135;--s2:#373a3f;--s3
 .xrow img,.xrow .xph{width:48px;height:48px;border-radius:12px;object-fit:cover;background:var(--s3);flex:none}
 .xrow .tx{flex:1;min-width:0}.xrow .tx b{display:block;font-size:15px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.xrow .tx span{display:block;font-size:12.5px;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .xrow button.go{all:unset;flex:1;display:flex;align-items:center;gap:12px;cursor:pointer;min-width:0}
-.xtext{width:100%;box-sizing:border-box;background:var(--s1);color:var(--ink);border:1.5px solid var(--s3);border-radius:20px;padding:14px 16px;font:15px/1.4 inherit;font-family:inherit;outline:none}
+.xtext{width:100%;box-sizing:border-box;background:var(--s1);color:var(--ink);border:1.5px solid var(--s3);border-radius:20px;padding:14px 16px;font-size:15px;line-height:1.4;font-family:inherit;outline:none}
 .xtext:focus{border-color:var(--acc)}
 textarea.xtext{min-height:150px;resize:vertical}
 .xbar{height:4px;border-radius:2px;background:var(--s3);overflow:hidden;margin-top:12px}.xbar i{display:block;height:100%;background:var(--acc);width:0;transition:width .2s}
@@ -84,7 +85,7 @@ textarea.xtext{min-height:150px;resize:vertical}
 .xpv .art{width:56px;height:56px;border-radius:14px;background:var(--acc)}
 .xpv .ln{height:8px;border-radius:4px;background:var(--s3);margin:6px 0;width:60%}.xpv .ln.a{background:var(--acc);width:36%}
 /* hum */
-.xmic{position:relative;height:340px;margin:8px 0 16px;border-radius:32px;background:radial-gradient(circle at 50% 45%,var(--s2),var(--s1) 75%);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;overflow:hidden}
+.xmic{position:relative;height:320px;margin:8px 0 16px;border-radius:32px;background:radial-gradient(circle at 50% 45%,var(--s2),var(--s1) 75%);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;overflow:hidden}
 .xmic .ring{position:absolute;border-radius:50%;border:2px solid var(--acc);opacity:.25;transition:transform .12s,opacity .12s}
 .xmic .big{position:relative;width:116px;height:116px;border-radius:50%;border:0;background:var(--acc);color:var(--on-acc,#000);display:grid;place-items:center;cursor:pointer}
 .xmic .st{position:relative;font-size:17px;font-weight:600;text-align:center;padding:0 24px;min-height:44px}
@@ -102,7 +103,7 @@ textarea.xtext{min-height:150px;resize:vertical}
 .xcar .big3 button:active{transform:scale(.96)}
 .xcar .big3 svg{width:64px;height:64px}.xcar .big3 .play svg{width:84px;height:84px}
 .xcar .two{display:grid;grid-template-columns:1fr 1fr;gap:14px;height:92px}
-.xcar .two button{border:0;border-radius:30px;background:#1d2024;color:#fff;font:700 20px inherit;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:12px;cursor:pointer}
+.xcar .two button{border:0;border-radius:30px;background:#1d2024;color:#fff;font-weight:700;font-size:20px;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:12px;cursor:pointer}
 .xcar .two button.on{background:#e8506a}.xcar .two button.v{background:#2a2438;color:#e0cfff}
 .xcar .two button.v.live{background:var(--acc);color:var(--on-acc,#000)}
 .xcar .seek{height:6px;border-radius:3px;background:#2a2d31;overflow:hidden}.xcar .seek i{display:block;height:100%;background:var(--acc);width:0}
@@ -313,13 +314,15 @@ function openFollowing(){
 let voiceCb = null, webRec = null;
 window.__evaVoice = (kind, text) => { if (voiceCb) voiceCb(kind, text); };
 window.__evaLevel = v => { const r = $('.xmic .ring'); if (!r) return; const k = Math.max(0, Math.min(1, (v + 2) / 12)); $$('.xwave i').forEach((b, i) => { b.style.height = (6 + k * 24 * (0.5 + 0.5 * Math.sin(i * 1.7 + Date.now() / 120))) + 'px'; }); r.style.transform = 'scale(' + (1 + k * 0.22) + ')'; r.style.opacity = String(0.2 + k * 0.4); };
+let vlang = LS.get('eva.vlang', 'en-IN');
+let lastCb = null;
 function listen(cb){
-  voiceCb = cb;
-  if (NATIVE){ try { EvaNative.listen(); } catch(e){ cb('error', 'Voice is not available'); } return; }
+  voiceCb = cb; lastCb = cb;
+  if (NATIVE){ try { EvaNative.listen(vlang); } catch(e){ cb('error', 'Voice is not available'); } return; }
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SR){ cb('error', 'Voice input needs the Android app'); return; }
   try {
-    webRec = new SR(); webRec.interimResults = true; webRec.lang = navigator.language || 'en-IN';
+    webRec = new SR(); webRec.interimResults = true; webRec.lang = vlang;
     webRec.onstart = () => cb('ready', ''); webRec.onerror = e => cb('error', 'Could not listen (' + e.error + ')');
     webRec.onresult = e => { let t = ''; for (const r of e.results) t += r[0].transcript; cb(e.results[e.results.length - 1].isFinal ? 'final' : 'partial', t); };
     webRec.start();
@@ -329,6 +332,7 @@ function stopListen(){ voiceCb = null; try { if (NATIVE) EvaNative.stopListen();
 
 function openHum(){
   show('', head('Find a song') + `<div class="xbody"><p class="xsub">Sing, hum or say a few words. Eva listens for the words and finds songs that match.</p>
+    <div class="xseg" id="vl" role="radiogroup" aria-label="Language of the song">${[['en-IN','English'],['ta-IN','Tamil'],['hi-IN','Hindi'],['ml-IN','Malayalam']].map(([v,l])=>`<button role="radio" class="${v===vlang?'on':''}" aria-checked="${v===vlang}" data-v="${v}">${l}</button>`).join('')}</div>
     <div class="xmic"><div class="ring" style="width:250px;height:250px"></div><div class="ring" style="width:196px;height:196px;opacity:.35"></div>
       <button class="big" id="xm" aria-label="Start listening">${svg('mic', 52, 2)}</button>
       <div class="st" id="xst" aria-live="polite">Tap the microphone</div>
@@ -337,6 +341,7 @@ function openHum(){
     <div id="xres" style="margin-top:14px"></div>
     <p class="xsub" style="margin-top:12px">Works best when you sing the words. Humming with no words is not recognised yet.</p></div>`, () => stopListen());
   const st = $('#xst', ov), res = $('#xres', ov), q = $('#xq', ov);
+  $$('#vl button', ov).forEach(b => b.onclick = () => { vlang = b.dataset.v; LS.set('eva.vlang', vlang); $$('#vl button', ov).forEach(x => { x.classList.toggle('on', x === b); x.setAttribute('aria-checked', String(x === b)); }); });
   async function run(text){
     text = (text || '').trim(); if (!text) return;
     st.textContent = '“' + text + '”'; res.innerHTML = '<div class="xsub">Looking for matches…</div>';
@@ -648,7 +653,7 @@ function open(v){
   ({car: openCar, hum: openHum, karaoke: openKaraoke, wrapped: openWrapped, import: openImport, themes: openThemes, following: openFollowing, sleep: openSleep})[v] && ({car: openCar, hum: openHum, karaoke: openKaraoke, wrapped: openWrapped, import: openImport, themes: openThemes, following: openFollowing, sleep: openSleep})[v]();
 }
 
-window.evaX = { chips, rows, open, followBar, albums, close, isOpen, car: openCar, beforeTheme(){} };
+window.evaX = { retryListen(){ if (lastCb && ov) listen(lastCb); }, chips, rows, open, followBar, albums, close, isOpen, car: openCar, beforeTheme(){} };
 
 /* background: count listening time for Wrapped, check new releases */
 setInterval(logTick, 1000);

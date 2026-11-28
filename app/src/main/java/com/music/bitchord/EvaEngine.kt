@@ -260,13 +260,13 @@ class EvaEngine(private val activity: android.app.Activity, private val web: Web
     }
 
     @JavascriptInterface
-    fun listen() {
+    fun listen(lang: String) {
         main.post {
             if (activity.checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
                 activity.requestPermissions(arrayOf(android.Manifest.permission.RECORD_AUDIO), 901)
                 voice("perm", ""); return@post
             }
-            if (!android.speech.SpeechRecognizer.isRecognitionAvailable(activity)) { voice("error", "Speech recognition isn't available on this phone"); return@post }
+            if (!android.speech.SpeechRecognizer.isRecognitionAvailable(activity)) { fallbackSpeech(lang); return@post }
             stopListen()
             val r = android.speech.SpeechRecognizer.createSpeechRecognizer(activity)
             recognizer = r
@@ -276,15 +276,30 @@ class EvaEngine(private val activity: android.app.Activity, private val web: Web
                 override fun onRmsChanged(v: Float) { web.post { web.evaluateJavascript("window.__evaLevel&&window.__evaLevel($v)", null) } }
                 override fun onBufferReceived(b: ByteArray?) {}
                 override fun onEndOfSpeech() {}
-                override fun onError(e: Int) { voice("error", if (e == android.speech.SpeechRecognizer.ERROR_NO_MATCH || e == android.speech.SpeechRecognizer.ERROR_SPEECH_TIMEOUT) "I didn't catch anything. Try again closer to the phone." else "Couldn't listen (code $e)") }
+                override fun onError(e: Int) {
+                    when (e) {
+                        android.speech.SpeechRecognizer.ERROR_NO_MATCH, android.speech.SpeechRecognizer.ERROR_SPEECH_TIMEOUT ->
+                            voice("error", "I didn't catch anything. Try again closer to the phone.")
+                        android.speech.SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> voice("perm", "")
+                        else -> fallbackSpeech(lang)
+                    }
+                }
                 override fun onResults(b: Bundle?) { voice("final", b?.getStringArrayList(android.speech.SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull().orEmpty()) }
                 override fun onPartialResults(b: Bundle?) { voice("partial", b?.getStringArrayList(android.speech.SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull().orEmpty()) }
                 override fun onEvent(t: Int, p: Bundle?) {}
             })
             r.startListening(android.content.Intent(android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
                 .putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE_MODEL, android.speech.RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                .putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE, lang)
                 .putExtra(android.speech.RecognizerIntent.EXTRA_PARTIAL_RESULTS, true))
         }
+    }
+
+    /** Google's own voice dialog, used when the in-app recogniser is missing or fails. */
+    private fun fallbackSpeech(lang: String) {
+        val act = activity as? EvaWebActivity
+        if (act == null) { voice("error", "Voice input isn't available on this phone"); return }
+        act.askSpeech(lang) { text -> voice("final", text.orEmpty()) }
     }
 
     @JavascriptInterface

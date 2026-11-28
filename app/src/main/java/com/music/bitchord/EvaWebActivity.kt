@@ -29,6 +29,21 @@ class EvaWebActivity : AppCompatActivity() {
     private lateinit var engine: EvaEngine
     private var pendingAuth: String? = null
     private var pendingCar = false
+    private var speechCb: ((String?) -> Unit)? = null
+    private val speechLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
+        val t = r.data?.getStringArrayListExtra(android.speech.RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()
+        speechCb?.invoke(t); speechCb = null
+    }
+
+    fun askSpeech(lang: String, cb: (String?) -> Unit) {
+        speechCb = cb
+        try {
+            speechLauncher.launch(Intent(android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
+                .putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE_MODEL, android.speech.RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                .putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE, lang)
+                .putExtra(android.speech.RecognizerIntent.EXTRA_PROMPT, "Sing or say a few words"))
+        } catch (e: Exception) { speechCb = null; cb(null) }
+    }
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -108,6 +123,12 @@ class EvaWebActivity : AppCompatActivity() {
         if (intent.data?.let { it.scheme == "evamusic" && it.host == "car" } == true) pendingCar = true
         if (savedInstanceState != null) web.restoreState(savedInstanceState)
         else web.loadUrl("https://$HOST/index.html")
+    }
+
+    override fun onRequestPermissionsResult(code: Int, perms: Array<out String>, res: IntArray) {
+        super.onRequestPermissionsResult(code, perms, res)
+        if (code == 901 && res.firstOrNull() == android.content.pm.PackageManager.PERMISSION_GRANTED)
+            web.evaluateJavascript("(window.evaX&&evaX.retryListen&&evaX.retryListen())", null)
     }
 
     override fun onNewIntent(intent: Intent) {
